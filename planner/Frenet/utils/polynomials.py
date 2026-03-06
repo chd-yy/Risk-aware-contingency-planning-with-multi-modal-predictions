@@ -237,3 +237,32 @@ class quartic_polynomial:
         xt = 6 * self.a3 + 24 * self.a4 * t
 
         return xt
+
+    # def format_polynomial(self, precision=4):
+    #     """
+    #     Build a human-readable string for the polynomial coefficients.
+
+    #     Args:
+    #         precision (int): Decimal precision for each coefficient.
+
+    #     Returns:
+    #         str: String representation such as "1.0 + 2.0 * t + 3.0 * t^2".
+    #     """
+    #     coeffs = [self.a0, self.a1, self.a2, self.a3, self.a4]
+    #     terms = []
+    #     for power, coeff in enumerate(coeffs):
+    #         if np.isclose(coeff, 0.0):
+    #             continue
+    #         coeff_fmt = f"{coeff:.{precision}f}"
+    #         if power == 0:
+    #             terms.append(coeff_fmt)
+    #         elif power == 1:
+    #             terms.append(f"{coeff_fmt} * t")
+    #         else:
+    #             terms.append(f"{coeff_fmt} * t^{power}")
+
+    #     return " + ".join(terms) if terms else "0"
+
+    # def print_polynomial(self, precision=4):
+    #     """Print the quartic polynomial for quick inspection."""
+    #     print(self.format_polynomial(precision))

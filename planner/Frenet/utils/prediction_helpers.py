@@ -359,52 +359,149 @@ def get_obstacles_prediction_overtake(zPred, backup):
 
 
 def get_prediction_from_scenario_tree(zPred):
+    """
+    从 Branch MPC 生成的 scenario tree (zPred) 中提取未来预测轨迹，
+    并整理成统一的 prediction_result 字典格式。
+
+    输入
+    ----
+    zPred : scenario tree 预测结果
+            结构通常是一个列表或数组，包含多条分支轨迹。
+            每条轨迹一般是一个二维数组：
+                shape = (T, state_dim)
+
+            state 一般为：
+                [x, y, v, yaw]
+
+    输出
+    ----
+    prediction_result : dict
+        包含所有未来场景的预测信息：
+            - 每个场景的未来位置
+            - 协方差
+            - 朝向
+            - 速度
+            - 障碍物尺寸
+    """
+    # 最终返回的预测结果
     prediction_result = {}
+    # 每层 scenario 数量（branching factor）
+    # 这里写死为3，表示每个节点有3种行为模式
     m = 3
+    # 存储最终组合后的所有场景轨迹
     scenarios_list = []
 
+    # ------------------------------------------------------------
+    # Step1：从 scenario tree 组合所有完整轨迹
+    # ------------------------------------------------------------
+    # zPred 实际是一个两层 scenario tree：
+    #
+    #      root
+    #     /  |  \
+    #    A   B   C
+    #   /|\ /|\ /|\
+    #  ... ... ...
+    #
+    # 第一层：3个行为模式
+    # 第二层：每个模式再分3个
+    #
+    # 因此最终场景数：
+    #   3 × 3 = 9
+    #
+    # 下面代码就是把两层轨迹拼接起来。
+    #
     for mode_index in range(m):
+        # 第二层节点索引
         for i in range(mode_index * m + m, mode_index * m + 2 * m):
+            # 拼接轨迹
+            #
+            # zPred[mode_index][:-1]
+            #    第一层轨迹（去掉最后一个点）
+            #
+            # zPred[i]
+            #    第二层轨迹
+            #
+            # concat 后得到完整未来轨迹
             scenarios_list.append(np.concatenate((zPred[mode_index][:-1], zPred[i])))
+    # ------------------------------------------------------------
+    # Step2：初始化未来预测数据结构
+    # ------------------------------------------------------------
 
+    # 未来位置列表
+    # 共9个场景
     fut_pos_list = [[None]] * 9
+    # 协方差列表
     fut_cov_list = [[None]] * 9
+    # 未来朝向
     pred_orientation_list = [[None]] * 9
+    # 未来速度
     pred_v_list = [[None]] * 9
+    # 最终返回结构
     fut_pos = []
     fut_cov = []
+    # 障碍物尺寸（写死）
     obst_length = 6
     obst_width = 2.6
 
+    # ------------------------------------------------------------
+    # Step3：提取未来位置
+    # ------------------------------------------------------------
+    # scenarios_list[mode] 是一条完整未来轨迹：
+    #
+    # shape = (T, state_dim)
+    #
+    # 每个 state:
+    #   [x, y, v, yaw]
+
     for ts in range(scenarios_list[0].shape[0]):
-        for mode in range(m * m):
+        # ts = time step
+        for mode in range(m * m):  # 9个场景
             if ts == 0:
+                # 第一次循环初始化列表
                 fut_pos_list[mode] = list()
                 fut_cov_list[mode] = list()
+                # 提取位置信息
                 fut_pos_list[mode].append(scenarios_list[mode][ts][0:2])
+                # 设置协方差
+                # 这里固定为常数,也可以根据时间步数增加（不确定性随时间增加）
                 fut_cov_list[mode].append([[0.1, 0.0], [0.0, 0.1]])
             else:
                 fut_pos_list[mode].append(scenarios_list[mode][ts][0:2])
                 fut_cov_list[mode].append([[0.1, 0.0], [0.0, 0.1]])
-
+    # ------------------------------------------------------------
+    # Step4：提取朝向和速度
+    # ------------------------------------------------------------
     # add orientation and velocity to the prediction dict
     for mode in range(m * m):
         pred_orientation_list[mode] = scenarios_list[mode][:, 3]
         pred_v_list[mode] = scenarios_list[mode][:, 2]
     '''
+    # 这段代码被注释掉
+    # 原本是把当前状态插入预测序列开头
     for mode in range(m):
         pred_orientation_list[mode] = np.insert(pred_orientation_list[mode], 0, init_state[3])
         pred_v_list[mode] = np.insert(pred_v_list[mode], 0, init_state[2])
     '''
+
+    # ------------------------------------------------------------
+    # Step5：转换为 numpy array
+    # ------------------------------------------------------------
     if len(fut_pos) == 0:
         fut_pos = fut_pos_list
         fut_cov = fut_cov_list
         for i in range(len(fut_pos)):
             fut_pos[i] = np.array(fut_pos[i])
             fut_cov[i] = np.array(fut_cov[i])
-
-    prediction_result[1] = {'pos_list': fut_pos, 'cov_list': fut_cov, 'orientation_list': pred_orientation_list,
-                            'v_list': pred_v_list}
+    # ------------------------------------------------------------
+    # Step6：构造 prediction_result 字典
+    # ------------------------------------------------------------
+    prediction_result[1] = {
+        'pos_list': fut_pos,                 # 每个场景未来位置
+        'cov_list': fut_cov,                 # 位置协方差
+        'orientation_list': pred_orientation_list,  # 朝向
+        'v_list': pred_v_list                # 速度
+    }
+    # 障碍物尺寸
     prediction_result[1]['shape'] = {'length': obst_length, 'width': obst_width}
     return prediction_result
 

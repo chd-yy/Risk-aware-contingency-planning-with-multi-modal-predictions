@@ -52,9 +52,67 @@ def calc_risk(
             every obstacle
 
     """
+    """
+    计算给定轨迹 traj 的风险。
+
+    参数说明
+    --------
+    traj : FrenetTrajectory
+        当前正在评估的候选轨迹（ego车的规划轨迹）
+
+    ego_state :
+        ego车辆当前状态
+
+    predictions : dict
+        其他车辆的未来预测结果
+        结构通常为：
+        {
+            obstacle_id :
+                {
+                    pos_list : [...],
+                    cov_list : [...],
+                    orientation_list : [...],
+                    v_list : [...]
+                }
+        }
+
+    scenario :
+        当前仿真场景
+
+    ego_id : int
+        ego车辆ID
+
+    vehicle_params :
+        ego车辆参数（长宽等）
+
+    params :
+        风险模型参数
+        包含：
+            modes : 风险计算模式
+            harm  : 伤害模型参数
+
+    reach_set :
+        可达集（当前代码未使用）
+
+    exec_timer :
+        用于记录执行时间
+
+    start_idx :
+        从预测轨迹的哪个时间步开始评估
+
+    mode_num :
+        场景模式数量
+        默认100表示 shared planning
+
+    belief :
+        对不同行为模式的概率信念
+    """
     timer = ExecTimer(timing_enabled=False) if exec_timer is None else exec_timer
 
+    # 读取风险计算模式
     modes = params['modes']
+
+    # 读取伤害模型参数
     coeffs = params['harm']
 
     with timer.time_with_cm(
@@ -70,6 +128,7 @@ def calc_risk(
             )
 
         else:
+            # 使用快速碰撞概率估计
             coll_prob_dict = get_collision_probability_fast(
                 traj=traj,
                 predictions=predictions,
@@ -78,20 +137,34 @@ def calc_risk(
                 mode_num=mode_num,
             )
 
+    # ---------------------------------------------------------
+    # Step 2：计算碰撞伤害
+    # ---------------------------------------------------------
     ego_harm_traj, obst_harm_traj = get_harm(
         scenario, traj, predictions, ego_id, vehicle_params, modes, coeffs, timer, start_idx, mode_num
     )
 
     # Calculate risk out of harm and collision probability
-    ego_risk_max = {}
-    ego_harm_max = {}
-    obst_risk_max = {}
-    obst_harm_max = {}
+    # ---------------------------------------------------------
+    # Step 3：初始化风险存储结构
+    # ---------------------------------------------------------
 
+    ego_risk_max = {}   # ego车最大风险
+    ego_harm_max = {}   # ego最大伤害
+    obst_risk_max = {}  # 障碍车最大风险
+    obst_harm_max = {}  # 障碍车最大伤害
+
+    # ---------------------------------------------------------
+    # Step 4：遍历每个障碍物
+    # ---------------------------------------------------------
     for key in ego_harm_traj:
+        # 每个mode对应一条轨迹风险
         ego_risk_traj_list = [[None]] * len(ego_harm_traj[key])
         obst_risk_traj_list = [[None]] * len(ego_harm_traj[key])
         # iterate over the modes per obstacle
+        # -----------------------------------------------------
+        # 遍历每个行为模式
+        # -----------------------------------------------------
         for mode in range(len(ego_harm_traj[key])):
             '''
             ego_risk_traj_list[mode] = [
@@ -99,27 +172,47 @@ def calc_risk(
                 for t in range(len(ego_harm_traj[key][mode]))
             ]
             '''
+            '''
+            原本风险计算应该是：
+
+            risk = collision_probability x harm
+
+            ego_risk_traj_list[mode] = [
+                ego_harm_traj[key][mode][t] * coll_prob_dict[key][mode][t]
+                for t in range(len(ego_harm_traj[key][mode]))
+            ]
+
+            但当前代码把 harm 注释掉了
+            '''
+            # 当前实现：风险 = 碰撞概率
             ego_risk_traj_list[mode] = [
                 coll_prob_dict[key][mode][t]
                 for t in range(len(ego_harm_traj[key][mode]))
             ]
+            # 障碍车风险（同样只用碰撞概率）
             obst_risk_traj_list[mode] = [
                 coll_prob_dict[key][mode][t]
                 for t in range(len(obst_harm_traj[key][mode]))
             ]
-
+        # 保存伤害值（不变）
         ego_harm_traj_list = ego_harm_traj[key]
         obst_harm_traj_list = obst_harm_traj[key]
 
         # For the shared plan, we need to weight the probability of collision of the shared
         # plan based on the beliefs over the modes
+        # -----------------------------------------------------
+        # Step 5：belief 加权（scenario tree）
+        # -----------------------------------------------------
+
+        # 如果是 shared plan（mode_num=100），则根据 belief 对风险进行加权
         if mode_num == 100:
             belief_idx = 0
             # This means this is the shared part of the plan
             for mode in range(len(ego_harm_traj[key])):
-
+                # 每3个mode属于同一行为
                 if mode % 3 == 0:
                     belief_idx += 1
+                # 乘以 belief 权重
                 ego_risk_traj_list[mode] = [belief[belief_idx - 1] * num for num in ego_risk_traj_list[mode]]
                 ego_harm_traj_list[mode] = [belief[belief_idx - 1] * num for num in ego_harm_traj_list[mode]]
                 obst_harm_traj_list[mode] = [belief[belief_idx - 1] * num for num in obst_harm_traj_list[mode]]
@@ -133,13 +226,65 @@ def calc_risk(
                 '''
 
         # Take max as representative for the whole trajectory
+        # -----------------------------------------------------
+        # Step 6：取整条轨迹的最大风险
+        # -----------------------------------------------------
+
+        # print("\n" + "=" * 80)
+        # print(f"[DEBUG] obstacle key = {key}")
+
+        # print("\n[1] ego_risk_traj_list =")
+        # for i, row in enumerate(ego_risk_traj_list):
+        #     print(f"  mode {i}: {row}")
+
+        # print("\n[2] obst_risk_traj_list =")
+        # for i, row in enumerate(obst_risk_traj_list):
+        #     print(f"  mode {i}: {row}")
+
+        # print("\n[3] ego_harm_traj_list =")
+        # for i, row in enumerate(ego_harm_traj_list):
+        #     print(f"  mode {i}: {row}")
+
+        # print("\n[4] obst_harm_traj_list =")
+        # for i, row in enumerate(obst_harm_traj_list):
+        #     print(f"  mode {i}: {row}")
+
+        # print("\n[5] ego_risk_max (before assign) =")
+        # print(ego_risk_max)
+
+        # print("\n[6] obst_risk_max (before assign) =")
+        # print(obst_risk_max)
+
+        # print("\n[7] ego_harm_max (before assign) =")
+        # print(ego_harm_max)
+
+        # print("\n[8] obst_harm_max (before assign) =")
+        # print(obst_harm_max)
+
         ego_risk_max[key] = max(max(row) for row in ego_risk_traj_list)
         ego_harm_max[key] = max(max(row) for row in ego_harm_traj_list)
         obst_harm_max[key] = max(max(row) for row in obst_harm_traj_list)
         obst_risk_max[key] = max(max(row) for row in obst_risk_traj_list)
 
+        
+        # print("\n[AFTER ASSIGN]")
+        # print(f"ego_risk_max[{key}] = {ego_risk_max[key]}")
+        # print(f"ego_harm_max[{key}] = {ego_harm_max[key]}")
+        # print(f"obst_harm_max[{key}] = {obst_harm_max[key]}")
+        # print(f"obst_risk_max[{key}] = {obst_risk_max[key]}")
+        # print("=" * 80 + "\n")
     # calculate boundary harm
     # col_obj = create_collision_object(traj, vehicle_params, ego_state)
+    # ---------------------------------------------------------
+    # Step 7：道路边界风险
+    # ---------------------------------------------------------
+
+    '''
+    下面代码本来用于检测车辆是否撞到道路边界
+    并计算边界碰撞伤害
+
+    当前被注释掉
+    '''
     '''
     leaving_road_at = trajectory_queries.trajectories_collision_static_obstacles(
         trajectories=[col_obj],
@@ -161,7 +306,9 @@ def calc_risk(
         boundary_harm = 0
     '''
     boundary_harm = 0
-
+    # ---------------------------------------------------------
+    # 返回风险结果
+    # ---------------------------------------------------------
     return ego_risk_max, obst_risk_max, ego_harm_max, obst_harm_max, boundary_harm
 
 

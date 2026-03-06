@@ -1,0 +1,13 @@
+(frenet_planner_main)project begin!!!
+(frenet_planner_main)scenario_path: recorded/hand-crafted/DEU_Muc-4_2_T-1.xml
+Loaded settings from /home/yanjun/NewDisk/beliefplanning/planner/Frenet/configs/risk.json
+(frenet_planner_main)eval_directory: /home/yanjun/NewDisk/beliefplanning/planner/Frenet/results/eval
+
+(frenet_planner_main传入evaluator)path_to_scenarios: /home/yanjun/NewDisk/beliefplanning/scenarios
+(frenet_planner_main传入evaluator)log_path: /home/yanjun/NewDisk/beliefplanning/log/example
+(frenet_planner_main传入evaluator)collision_report_path: /home/yanjun/NewDisk/beliefplanning/planner/Frenet/results/eval
+(frenet_planner_main传入evaluator.eval_scenario): recorded/hand-crafted/DEU_Muc-4_2_T-1.xml
+
+(eval_scenario)self.scenario_path: /home/yanjun/NewDisk/beliefplanning/scenarios/recorded/hand-crafted/DEU_Muc-4_2_T-1.xml
+
+

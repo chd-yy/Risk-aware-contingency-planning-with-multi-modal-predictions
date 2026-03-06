@@ -1,0 +1,5 @@
+_pycache__/
+__pycache__/
+*.pyc
+# ignore venv
+.venv38/*
