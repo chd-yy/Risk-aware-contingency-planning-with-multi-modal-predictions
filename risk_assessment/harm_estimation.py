@@ -215,6 +215,7 @@ def get_harm(scenario, traj, predictions, ego_id, vehicle_params, modes, coeffs,
         _type_: _description_
     """
     # get the IDs of the predicted obstacles
+    # Important
     obstacle_ids = list(predictions.keys())
 
     # max_pred_length = 0

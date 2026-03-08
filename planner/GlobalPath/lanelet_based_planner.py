@@ -1,7 +1,12 @@
 #!/user/bin/env python
 
 """Implementation of a lanelet based global path planner."""
-
+# 本文件功能:基于 CommonRoad 的 lanelet 网络(车道片段拓扑)实现全局路径规划器。
+# 核心思路:
+# 1) 先在 lanelet 拓扑图上做“离目标的离散代价传播”(predecessor/adjacent 递归)得到每条 lanelet 的 cost
+# 2) 从起点 lanelet 出发,沿 successor 或相邻车道(同向)逐步选择 cost 更低/不升的 lanelet 序列
+# 3) 在 lanelet 序列上生成连续几何路径:同车道用 centerline 拼接；变道用五次多项式(quintic)生成平滑曲线
+# 4) 最后清理重复点、计算路径长度,并支持把“到达目标前/离开目标后”的路径分段用于绘图展示
 # Standard imports
 import os
 import sys
@@ -1187,7 +1192,7 @@ def find_lanelet_by_position_and_orientation(lanelet_network, position, orientat
 
 
 if __name__ == '__main__':
-
+    # 将工作目录切换到当前脚本目录,确保相对路径正确
     # Change the working directory to the directory of the evaluation script
     os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
@@ -1196,7 +1201,7 @@ if __name__ == '__main__':
 
     # Option 1: enter one specific file
     # get path of the scenario
-
+    # 指定场景文件相对路径(相对 commonroad-scenarios/scenarios 根目录)
     scenario_name = "recorded/scenario-factory/DEU_Speyer-4_2_T-1.xml"
     # scenario_name = 'NGSIM/Peachtree/USA_Peach-1_1_T-1.xml'
     # scenario_name = 'NGSIM/US101/USA_US101-16_2_T-1.xml'
@@ -1204,6 +1209,10 @@ if __name__ == '__main__':
     # scenario_name = 'SUMO/ESP_Mad-2_1_T-1.xml'
     # scenario_name = 'THI-Bicycle/RUS_Bicycle-4_1_T-1.xml'
 
+    # 构造场景绝对路径:
+    # os.getcwd() 当前脚本目录
+    # os.pardir 上一级目录
+    # 这里通过多次 dirname/abspath 回溯到仓库结构中 commonroad-scenarios/scenarios
     scenario_path = os.path.join(
         os.path.dirname(
             os.path.dirname(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
@@ -1211,16 +1220,16 @@ if __name__ == '__main__':
         'commonroad-scenarios/scenarios',
         scenario_name,
     )
-
+    # 读取 scenario 与 planning_problem_set
     scenario, planning_problem_set = CommonRoadFileReader(scenario_path).open()
 
-    # Plot lanelet network and planning problem
+    # 可视化(调试用):绘制车道网络和规划问题
     # draw_object(scenario.lanelet_network)
     # draw_object(planning_problem_set)
     # plt.gca().set_aspect('equal')
     # plt.show()
 
-    # Get planning problem
+    # 取第一个 planning problem(场景可能包含多个)
     # Take the first planning problem, if the scenario consists of multiple planning problems
     planning_problem = list(planning_problem_set.planning_problem_dict.values())[0]
 
@@ -1237,7 +1246,7 @@ if __name__ == '__main__':
     print('Global path planning took {0:.3f} seconds.'.format(exec_time))
 
     # print("path: \n", result)
-
+    # 将路径分成“到目标”与“离开目标后”两段,便于绘图使用不同线型
     # Plot the resulting trajectory
     print("Resulting global path with a length of %.2f meter: " % path_length)
     draw_object(scenario.lanelet_network)

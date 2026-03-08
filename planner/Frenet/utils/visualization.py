@@ -3,39 +3,61 @@
 """Visualization functions for the frenét planner."""
 import warnings
 
+# CommonRoad 场景对象类型
 from commonroad.scenario.scenario import Scenario
+
+# CommonRoad 通用绘图接口：可以画 scenario / planning_problem / obstacle 等对象
 from commonroad.visualization.draw_dispatch_cr import draw_object
+
+# 一些辅助可视化函数：
+# - get_max_frames_from_scenario: 从 scenario 中估计最大帧数
+# - get_plot_limits_from_scenario: 根据场景自动给出绘图边界
 from commonroad_helper_functions.visualization import (
     get_max_frames_from_scenario,
     get_plot_limits_from_scenario,
 )
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 import matplotlib.cm as cm
 import matplotlib.animation as animation
+
+# matplotlib.patches.Polygon 用于画可达集、多边形区域等
 from matplotlib.patches import Polygon
+
 import sys
 import os
 import pickle
 
 # Ignore Matplotlib DeprecationWarning
+# 忽略 matplotlib 的弃用警告，避免运行时输出过多 warning
 warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
+# 全局默认 figure 尺寸
 plt.rcParams["figure.figsize"] = (8, 8)
 
+# 将项目根目录加入 sys.path，方便做绝对导入
 module_path = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
 sys.path.append(module_path)
 
+# helper_functions 中：
+# - get_max_curvature: 给定车辆参数和速度，返回允许的最大曲率
+# - green_to_red_colormap: 从绿色到红色的 colormap，常用来表示 cost 从低到高
 from planner.Frenet.utils.helper_functions import (
     get_max_curvature,
     green_to_red_colormap,
 )
+
+# 执行计时器
 from planner.utils.timers import ExecTimer
+
+# 画不确定性预测结果
 from prediction.utils.visualization import draw_uncertain_predictions
 
+# 全局计数器（当前代码里几乎没真正用到，只在注释中出现）
 i = 0
 
 
@@ -72,20 +94,36 @@ def animate_scenario(
         animation: Animated scenario.
         dict: Dictionary with the execution times.
     """
-    # Create a dummy logger that does nothing if no timer is given
+
+    # 如果没有传入计时器，则创建一个“禁用 timing”的默认计时器
     if exec_timer is None:
         exec_timer = ExecTimer(False)
-    # get the plot limits
+
+    # 如果没有手动指定 plot_limits，就根据整个场景自动推一个边界
     if plot_limits is None:
         plot_limits = get_plot_limits_from_scenario(scenario=scenario)
 
-    # get the frames per second
+    # ----------------------------
+    # 计算实际可用帧率 fps_available
+    # ----------------------------
+    # scenario.dt 是场景离散时间步长（例如 0.1s）
+    # 如果用户要求的 fps 太高，超过了场景采样频率，就最多只能按场景实际 dt 播放
+    #
+    # 例如：
+    #   scenario.dt = 0.1 => 最大 10 fps
+    #   如果传 fps=30，则实际只能用 10 fps
     if 1 / fps < scenario.dt:
         fps_available = 1 / scenario.dt
     else:
         fps_available = fps
 
-    # get the number of frames (number of time steps until the planning problem is solved
+    # ----------------------------
+    # 计算总帧数 frames
+    # ----------------------------
+    # 优先级：
+    # 1) 若指定了 marked_vehicles，则用该车辆轨迹预测长度
+    # 2) 否则若 planning_problem 定义了目标时间窗口，则用目标结束时间
+    # 3) 否则从 scenario 中估计最大轨迹长度
     if marked_vehicles is not None:
         frames = (
                 len(scenario.obstacle_by_id(marked_vehicles[0]).prediction.occupancy_set)
@@ -99,10 +137,13 @@ def animate_scenario(
         trajectory_points = get_max_frames_from_scenario(scenario=scenario)
         frames = int(trajectory_points * scenario.dt * fps_available)
 
+    # 至少保证 1 帧
     if frames == 0:
         frames = 1
 
-    # get the states of the marked vehicle
+    # ----------------------------
+    # 预提取被标记车辆的状态序列，用于下面的速度/加速度/航向子图
+    # ----------------------------
     t = []
     v = []
     a = []
@@ -111,10 +152,12 @@ def animate_scenario(
     with exec_timer.time_with_cm("animate create states"):
 
         if marked_vehicles is not None:
-            # add the initial states if they are given in the planning problme
+            # 这里只取第一个 marked vehicle 的完整轨迹信息
             trajectory = scenario.obstacle_by_id(
                 marked_vehicles[0]
             ).prediction.trajectory
+
+            # 先添加初始状态的信息
             if hasattr(
                     scenario.obstacle_by_id(marked_vehicles[0]).initial_state, "time_step"
             ):
@@ -123,6 +166,7 @@ def animate_scenario(
                 )
             else:
                 t.append(0)
+
             if hasattr(
                     scenario.obstacle_by_id(marked_vehicles[0]).initial_state, "velocity"
             ):
@@ -131,6 +175,7 @@ def animate_scenario(
                 )
             else:
                 v.append(0.0)
+
             if hasattr(
                     scenario.obstacle_by_id(marked_vehicles[0]).initial_state,
                     "acceleration",
@@ -142,6 +187,7 @@ def animate_scenario(
                 )
             else:
                 a.append(0.0)
+
             if hasattr(
                     scenario.obstacle_by_id(marked_vehicles[0]).initial_state, "orientation"
             ):
@@ -153,25 +199,31 @@ def animate_scenario(
             else:
                 yaw.append(0.0)
 
-            # add every state from the trajectory
+            # 再把 trajectory.state_list 里的每个状态都追加进去
             for state in trajectory.state_list:
                 if hasattr(state, "velocity"):
                     v.append(state.velocity)
                 else:
                     v.append(0.0)
+
                 if hasattr(state, "time_step"):
                     t.append(state.time_step)
                 else:
                     t.append(0)
+
                 if hasattr(state, "acceleration"):
                     a.append(state.acceleration)
                 else:
                     a.append(0.0)
+
                 if hasattr(state, "orientation"):
                     yaw.append(state.orientation)
                 else:
                     yaw.append(0.0)
 
+    # ----------------------------
+    # 根据 success / failure_msg 设置输出目录与标题前缀
+    # ----------------------------
     # get information about the success of the solved scenario
     # there are 2 directories, one for successful scenarios and one for failed ones
     # create these directories if they do not exist yet
@@ -194,9 +246,18 @@ def animate_scenario(
                 os.makedirs(animation_directory)
 
     def animate(j):
+        """
+        FuncAnimation 每一帧调用一次。
+        j 是当前动画帧索引，不一定等于 scenario 的 time_step，
+        需要根据 scenario.dt 和 fps_available 换算。
+        """
 
-        # axis 1 sows the marked vehicle in the lanelet network
+        # ----------------------------
+        # 子图1：场景图
+        # ----------------------------
         ax1.cla()
+
+        # 构造目标时间字符串，用于标题展示
         if hasattr(planning_problem.goal.state_list[0], "time_step"):
             target_time_string = "Target-time: %.1f s - %.1f s" % (
                 planning_problem.goal.state_list[0].time_step.start * scenario.dt,
@@ -204,6 +265,8 @@ def animate_scenario(
             )
         else:
             target_time_string = "No target-time"
+
+        # 设置主标题
         ax1.set(
             title=(
                     str(scenario.benchmark_id)
@@ -215,10 +278,14 @@ def animate_scenario(
                     + target_time_string
             )
         )
+
         ax1.set_aspect("equal")
         ax1.set_xlabel(r"$x$ in m")
         ax1.set_ylabel(r"$y$ in m")
-        # draw all obstacles
+
+        # 画 scenario 中所有对象
+        # 注意：time_begin 这里用的是 int(j / (scenario.dt * fps_available))
+        # 因为动画帧和 scenario 时间步不一定一一对应，需要映射回离散 time step
         draw_object(
             obj=scenario,
             ax=ax1,
@@ -226,7 +293,7 @@ def animate_scenario(
             draw_params={"time_begin": int(j / (scenario.dt * fps_available))},
         )
 
-        # draw the planning problme
+        # 画 planning problem（目标区域等）
         if planning_problem is not None:
             draw_object(
                 obj=planning_problem,
@@ -235,8 +302,7 @@ def animate_scenario(
                 draw_params={"time_begin": int(j / (scenario.dt * fps_available))},
             )
 
-        # draw the ego vehicle in green
-        # and put the ego vehicle in the center of the plot
+        # 画被标记车辆（通常是 ego）
         if marked_vehicles is not None:
             for marked_vehicle in marked_vehicles:
                 if marked_vehicle is not None:
@@ -249,15 +315,19 @@ def animate_scenario(
                             "facecolor": "g",
                         },
                     )
+
+                    # 若指定了 animation_area，则把 ego 车放到视图中心附近
                     if animation_area is not None:
-                        # align ego position to the center
                         ego_vehicle = scenario.obstacle_by_id(marked_vehicle)
+
+                        # j==0 时只能用 initial_state；后续用 occupancy_set 的中心
                         if j == 0:
                             ego_vehicle_pos = ego_vehicle.initial_state.position
                         else:
                             ego_vehicle_pos = ego_vehicle.prediction.occupancy_set[
                                 j - 1
                                 ].shape.center
+
                         ax1.set(
                             xlim=(
                                 ego_vehicle_pos[0] - animation_area,
@@ -271,16 +341,19 @@ def animate_scenario(
                             )
                         )
 
-                # velocity subplot
+                # ----------------------------
+                # 子图2：速度曲线
+                # ----------------------------
                 ax2.cla()
                 ax2.set(title="Velocity")
-
                 ax2.set(ylabel=r"$v$ in m/s")
                 ax2.set(xlabel=r"$t$ in s")
-                # visualize the given goal velocity in the planning problem
+
+                # 若 planning_problem 定义了目标速度区间，则画出“目标区域框”
                 if hasattr(planning_problem.goal.state_list[0], "velocity"):
                     v_min = planning_problem.goal.state_list[0].velocity.start
                     v_max = planning_problem.goal.state_list[0].velocity.end
+
                     if hasattr(planning_problem.goal.state_list[0], "time_step"):
                         ts_min = planning_problem.goal.state_list[0].time_step.start
                         ts_max = planning_problem.goal.state_list[0].time_step.end
@@ -296,15 +369,20 @@ def animate_scenario(
                             [t[0], t[-1]], [v_max, v_max], color="g", label="goal area"
                         )
                     ax2.legend()
+
+                # 画速度曲线和当前时刻散点
                 ax2.plot(t, v)
                 ax2.scatter(j, v[j])
 
-                # acceleration subplot
+                # ----------------------------
+                # 子图3：加速度曲线
+                # ----------------------------
                 ax3.cla()
                 ax3.set(title="Acceleration")
                 ax3.set(ylabel=r"$a$ in m/s²")
                 ax3.set(xlabel=r"$t$ in s")
-                # visualize the given goal acceleration in the planning problem
+
+                # 若定义了目标加速度区间，则画绿色目标框
                 if hasattr(planning_problem.goal.state_list[0], "acceleration"):
                     a_min = planning_problem.goal.state_list[0].acceleration.start
                     a_max = planning_problem.goal.state_list[0].acceleration.end
@@ -323,15 +401,19 @@ def animate_scenario(
                             [t[0], t[-1]], [a_max, a_max], color="g", label="goal area"
                         )
                     ax3.legend()
+
                 ax3.plot(t, a)
                 ax3.scatter(j, a[j])
 
-                # orientation subplot
+                # ----------------------------
+                # 子图4：航向角曲线
+                # ----------------------------
                 ax4.cla()
                 ax4.set(title="Orientation")
                 ax4.set(ylabel=r"$\psi$ in rad")
                 ax4.set(xlabel=r"$t$ in s")
-                # visualize the given goal orientation in the planning problem
+
+                # 若定义了目标航向区间，则画绿色目标框
                 if hasattr(planning_problem.goal.state_list[0], "orientation"):
                     yaw_min = planning_problem.goal.state_list[0].orientation.start
                     yaw_max = planning_problem.goal.state_list[0].orientation.end
@@ -353,39 +435,48 @@ def animate_scenario(
                             label="goal area",
                         )
                     ax4.legend()
+
                 ax4.plot(t, yaw)
                 ax4.scatter(j, yaw[j])
 
+    # 先关闭可能已有的 figure，避免叠加
     plt.close()
-    # create the figure
+
+    # 创建总 figure
     fig = plt.figure(constrained_layout=False, figsize=(22, 15))
-    # set the font size
+
+    # 提高整体字体大小，便于演示和保存
     plt.rcParams.update({"font.size": 25})
-    # add a gridspec for the subplots
+
+    # gridspec 布局：
+    # 上面两行给场景图 ax1
+    # 下面一行分三块分别给 ax2/ax3/ax4
     gs = fig.add_gridspec(3, 11, left=0.05, top=0.9, right=0.95, wspace=0.3, hspace=0.5)
     ax1 = fig.add_subplot(gs[0:2, :])
     ax2 = fig.add_subplot(gs[2, 0:3])
     ax3 = fig.add_subplot(gs[2, 4:7])
     ax4 = fig.add_subplot(gs[2, 8:11])
 
+    # 生成动画对象
     with exec_timer.time_with_cm("animate create animation"):
         anim = animation.FuncAnimation(
             fig=fig,
             func=animate,
             frames=frames,
-            interval=1 / fps_available * 1000,
+            interval=1 / fps_available * 1000,  # 毫秒
             repeat=False,
             repeat_delay=1000,
             blit=False,
         )
 
-    # save the animation
+    # 若 save_animation=True，则导出 gif
     with exec_timer.time_with_cm("animate save"):
         if save_animation:
             writergif = animation.PillowWriter(fps=fps_available)
             anim.save(
                 animation_directory + scenario.benchmark_id + ".gif", writer=writergif
             )
+
     return anim
 
 
@@ -409,6 +500,16 @@ def draw_contingent_trajectories(
         best_traj=None,
         open_loop=False,
 ):
+    """
+    绘制 contingent planning 结果：
+    - shared plan
+    - 各 mode 下的 contingent trajectories
+    - 预测轨迹
+
+    注意：这段代码对 y 坐标做了负号变换（-y），说明当前绘图坐标系和内部状态坐标系方向相反。
+    """
+
+    # 如果 live=True，先把场景底图画出来
     if live:
         ax = draw_scenario(
             scenario,
@@ -428,15 +529,16 @@ def draw_contingent_trajectories(
 
     # Draw all possible trajectories with their costs as colors
     if valid_traj is not None and len(valid_traj) != 0:
-        # x and y axis description
         ax.set_xlabel("x[m]")
         ax.set_ylabel("y[m]")
 
-        # align ego position to the center
+        # 把坐标轴范围固定到 shared_plan 起点附近
         ax.set_xlim(
             valid_traj[0]['shared_plan'].x[0] - animation_area / 6,
             valid_traj[0]['shared_plan'].x[0] + animation_area - 15
         )
+
+        # y 轴范围被硬编码成 [-10.8, 3.6]，明显是特定车道环境下的设置
         '''
         ax.set_ylim(
             valid_traj[0]['shared_plan'].y[0] - animation_area / 2,
@@ -447,17 +549,20 @@ def draw_contingent_trajectories(
             -10.8, 3.6
         )
 
-    # best trajectory
+    # 选择“最佳 shared 轨迹”
     if len(valid_traj) > 0:
         best_shared_trajectory = valid_traj[0]['shared_plan']
     else:
         best_shared_trajectory = best_traj[1]['shared_plan']
 
+    # 预设颜色集
     # if time_step == 0 or open_loop is False:
     # if open_loop is True:
     # x and y axis description
     colorset = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray',
                 'tab:olive', 'tab:cyan', 'y', 'm', 'c', 'g']
+
+    # 画最佳 shared trajectory（蓝色）
     ax.plot(
         best_shared_trajectory.x,
         -best_shared_trajectory.y,
@@ -468,6 +573,9 @@ def draw_contingent_trajectories(
         picker=picker,
     )
 
+    # keys_list 里通常包括：
+    # ['shared_plan', 0, 1, 2, ..., 'cost'] 或类似结构
+    # 这里跳过第一个和最后一个，画中间的 contingent trajectories
     keys_list = list(valid_traj[0])
     j = 1
     for key in keys_list[1:-1]:
@@ -504,12 +612,14 @@ def draw_contingent_trajectories(
     )
     '''
     # draw predictions
+    # 这里只取 predictions.values() 的前10个元素，再从中提 fut_pos_list
     prediction_plot_list = list(predictions.values())[:10]
     fut_pos_list = [
         prediction_plot_list[i]["pos_list"][:20][:]
         for i in range(len(prediction_plot_list))
     ]
 
+    # 画预测轨迹点，y 同样取负
     for i in range(len(fut_pos_list[0])):
         ax.plot(fut_pos_list[0][i][:, 0], -fut_pos_list[0][i][:, 1], alpha=0.5,
                 color='tab:gray',
@@ -518,13 +628,15 @@ def draw_contingent_trajectories(
                 marker='o',
                 markersize=2,
                 picker=picker, )
+
+    # 如果想画不确定性预测云团，可以打开下面注释
     '''
     if predictions is not None:
         draw_uncertain_predictions(predictions, ax)
     '''
-    # show the figure until the next one ins ready
-    # plt.savefig(str(i).zfill(4) + ".png")
-    # i += 1
+
+    # 短暂 pause，使 live 绘图能刷新
+
     plt.pause(0.000001)
 
 
@@ -548,6 +660,10 @@ def draw_all_plans(
         best_traj=None,
         open_loop=False,
 ):
+    """
+    画出所有 shared plans + all contingent plans，并高亮 best plan。
+    """
+
     if live:
         ax = draw_scenario(
             scenario,
@@ -577,47 +693,55 @@ def draw_all_plans(
             valid_traj[0]['shared_plan'].x[0] + animation_area - 15
         )
 
+        # 同样硬编码 y 范围，确保画面居中
         ax.set_ylim(
             -10.8, 3.6
         )
 
     # best trajectory
-    if len(valid_traj) > 0:
-        best_shared_trajectory = valid_traj[0]['shared_plan']
-    else:
-        best_shared_trajectory = best_traj[1]['shared_plan']
+    # if len(valid_traj) > 0:
+    #     best_shared_trajectory = valid_traj[0]['shared_plan']
+    # else:
+    #     best_shared_trajectory = best_traj[1]['shared_plan']
 
+    # 第一套 colorset 被第二套覆盖
     colorset = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray',
                 'tab:olive', 'tab:cyan', 'y', 'm', 'c', 'g']
 
+    # 实际使用的是这一套
     colorset = ['tab:pink', 'tab:blue', 'tab:purple', 'tab:olive', 'm', 'tab:cyan']
-    j = 0
-    for p in reversed(valid_traj):
-        ax.plot(p['shared_plan'].x, -p['shared_plan'].y, alpha=0.02, color='k', zorder=25, picker=picker)
-        j = j + 1
-        if j == len(colorset):
-            j = 0
 
+    # 先把所有 shared_plan 用淡黑色画出来
+    # j = 0
+    for p in reversed(valid_traj):
+        ax.plot(p['shared_plan'].x, p['shared_plan'].y, alpha=0.02, color='k', zorder=25, picker=picker)
+        # j = j + 1
+        # print(f"Loop count: {j}") 
+
+    # 再把每个 plan 里的 contingent trajectories 画出来
     for i in range(len(valid_traj)):
         keys_list = list(valid_traj[i])
         j = 1
         for key in keys_list[1:-1]:
-            if abs(valid_traj[i][key].d[-1] + 3.6) < 0.1:
+
+            # 根据 trajectory 末端的 d 值来映射颜色
+            # 这里的阈值完全是 hard-coded，对应 d = -3.6, -2.88, -2.16, ...
+            if abs(valid_traj[i][key].d[-1] - 3.6) < 0.01:
                 j = 0
-            elif abs(valid_traj[i][key].d[-1] + 2.88) < 0.1:
+            elif abs(valid_traj[i][key].d[-1] - 2.88) < 0.01:
                 j = 1
-            elif abs(valid_traj[i][key].d[-1] + 2.16) < 0.1:
+            elif abs(valid_traj[i][key].d[-1] - 2.16) < 0.01:
                 j = 2
-            elif abs(valid_traj[i][key].d[-1] + 1.44) < 0.1:
+            elif abs(valid_traj[i][key].d[-1] - 1.44) < 0.01:
                 j = 3
-            elif abs(valid_traj[i][key].d[-1] + 0.72) < 0.1:
+            elif abs(valid_traj[i][key].d[-1] - 0.72) < 0.01:
                 j = 4
-            elif abs(valid_traj[i][key].d[-1]) < 0.1:
+            elif abs(valid_traj[i][key].d[-1]) < 0.01:
                 j = 5
 
             ax.plot(
                 valid_traj[i][key].x,
-                -valid_traj[i][key].y,
+                valid_traj[i][key].y,
                 alpha=0.02,
                 color=colorset[j],
                 zorder=25,
@@ -628,19 +752,21 @@ def draw_all_plans(
             if j == len(colorset):
                 j = 0
 
-    # plot best trajectory
-    ax.plot(best_traj[0]['shared_plan'].x, -best_traj[0]['shared_plan'].y, alpha=1.0, linewidth=3.0, color='tab:blue',
+    # plot best trajectory（最佳计划的 shared 部分）
+    ax.plot(best_traj[0]['shared_plan'].x, best_traj[0]['shared_plan'].y, alpha=1.0, linewidth=3.0, color='tab:blue',
             zorder=25, picker=picker)
+
+    # 再画最佳计划的 contingent 部分
     keys_list = list(best_traj[0])
-    for key in keys_list[1:-1]:
+    for idx, key in enumerate(keys_list[1:-1]):
         ax.plot(
             best_traj[0][key].x,
-            -best_traj[0][key].y,
+            best_traj[0][key].y,
             alpha=1.0,
-            color='tab:blue',
+            color=colorset[j % len(colorset)],
             linewidth=1.5,
             zorder=25,
-            label="Best trajectory",
+            label="Best trajectory" if idx == 0 else None,
             picker=picker,
         )
         j += 1
@@ -653,13 +779,14 @@ def draw_all_plans(
     ]
 
     for i in range(len(fut_pos_list[0])):
-        ax.plot(fut_pos_list[0][i][:, 0], -fut_pos_list[0][i][:, 1], alpha=0.5,
+        ax.plot(fut_pos_list[0][i][:, 0], fut_pos_list[0][i][:, 1], alpha=0.5,
                 color='tab:gray',
                 lw=0.5,
                 zorder=25,
                 marker='o',
                 markersize=2,
                 picker=picker, )
+
     '''
     if predictions is not None:
         draw_uncertain_predictions(predictions, ax)
@@ -690,6 +817,10 @@ def draw_all_contingent_trajectories(
         best_traj=None,
         open_loop=False,
 ):
+    """
+    画所有 contingent trajectories，并根据 cost 进行可视化。
+    """
+
     if live:
         ax = draw_scenario(
             scenario,
@@ -723,7 +854,7 @@ def draw_all_contingent_trajectories(
             -10.8, 3.6
         )
 
-        # mormalize the costs of the trajectories to map colors to them
+        # 用 cost 做归一化，生成颜色映射器
         norm = matplotlib.colors.Normalize(
             vmin=min([valid_traj[i]['cost'] for i in range(len(valid_traj))]),
             vmax=max([valid_traj[i]['cost'] for i in range(len(valid_traj))]),
@@ -739,14 +870,17 @@ def draw_all_contingent_trajectories(
 
     colorset = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray',
                 'tab:olive', 'tab:cyan', 'y', 'm', 'c', 'g']
+
+    # 先画所有 shared_plan
     j = 0
     for p in reversed(valid_traj):
-        color = mapper.to_rgba(p['cost'])
+        color = mapper.to_rgba(p['cost'])  # 这里算了 color，但下面实际没用它，而是用了 colorset[j]
         ax.plot(p['shared_plan'].x, -p['shared_plan'].y, alpha=0.15, color=colorset[j], zorder=25, picker=picker)
         j = j + 1
         if j == len(colorset):
             j = 0
 
+    # 再画每个 contingent trajectory
     for i in range(len(valid_traj)):
         keys_list = list(valid_traj[i])
         j = 1
@@ -762,9 +896,10 @@ def draw_all_contingent_trajectories(
             )
             j += 1
 
-    # plot best trajectory
+    # 最后高亮最优计划（shared + contingent）
     ax.plot(valid_traj[0]['shared_plan'].x, -valid_traj[0]['shared_plan'].y, alpha=1.0, linewidth=3.0, color='tab:blue',
             zorder=25, picker=picker)
+
     keys_list = list(valid_traj[0])
     for key in keys_list[1:-1]:
         ax.plot(
@@ -794,6 +929,7 @@ def draw_all_contingent_trajectories(
                 marker='o',
                 markersize=2,
                 picker=picker, )
+
     '''
     if predictions is not None:
         draw_uncertain_predictions(predictions, ax)
@@ -845,6 +981,8 @@ def draw_frenet_trajectories(
         save_fig (bool): True if the figure should be saved. Defaults to False.
         :param ax:
     """
+
+    # 先画底图
     if live:
         ax = draw_scenario(
             scenario,
@@ -864,11 +1002,10 @@ def draw_frenet_trajectories(
 
     # Draw all possible trajectories with their costs as colors
     if all_traj is not None and len(all_traj) != 0:
-        # x and y axis description
         ax.set_xlabel("x in m")
         ax.set_ylabel("y in m")
 
-        # align ego position to the center
+        # 把画面中心对准 all_traj[0] 的起点附近
         ax.set_xlim(
             all_traj[0].x[0] - animation_area, all_traj[0].x[0] + animation_area
         )
@@ -876,7 +1013,7 @@ def draw_frenet_trajectories(
             all_traj[0].y[0] - animation_area / 2, all_traj[0].y[0] + animation_area / 2
         )
 
-        # normalize the costs of the trajectories to map colors to them
+        # 将轨迹 cost 归一化，准备映射成颜色
         norm = matplotlib.colors.Normalize(
             vmin=min([all_traj[i].cost for i in range(len(all_traj))]),
             vmax=max([all_traj[i].cost for i in range(len(all_traj))]),
@@ -884,7 +1021,7 @@ def draw_frenet_trajectories(
         )
         mapper = cm.ScalarMappable(norm=norm, cmap=green_to_red_colormap())
 
-        # first plot all invalid trajectories
+        # 原本想画所有 valid/invalid trajectories，但这部分被注释掉了
         '''
         for p in all_traj:
             if p.valid_level < 1:
@@ -912,12 +1049,15 @@ def draw_frenet_trajectories(
                 color = mapper.to_rgba(p.cost)
                 ax.plot(p.x, p.y, alpha=1.0, color=color, zorder=20, picker=picker)
        '''
-    # best trajectory
+
+    # 选择 best trajectory：
+    # 优先 valid_traj[0]，若没有 valid，则取 invalid_traj[0]
     if len(valid_traj) > 0:
         best_trajectory = valid_traj[0]
     elif len(invalid_traj) > 0:
         best_trajectory = invalid_traj[0]
 
+    # 如果 time_step==0 或 open_loop=False，说明当前用的是在线规划结果
     if time_step == 0 or open_loop == False:
         ax.plot(
             best_trajectory.x,
@@ -930,17 +1070,17 @@ def draw_frenet_trajectories(
             picker=picker,
         )
     else:
-        # x and y axis description
+        # 否则使用 best_traj 字典中缓存的 open-loop 轨迹
         ax.set_xlabel("x in m")
         ax.set_ylabel("y in m")
 
-        # align ego position to the center
         ax.set_xlim(
             best_traj['x_m'][time_step] - animation_area, best_traj['x_m'][time_step] + animation_area
         )
         ax.set_ylim(
             best_traj['y_m'][time_step] - animation_area / 2, best_traj['y_m'][time_step] + animation_area / 2
         )
+
         ax.plot(
             best_traj['x_m'],
             best_traj['y_m'],
@@ -952,6 +1092,7 @@ def draw_frenet_trajectories(
             picker=picker,
         )
 
+    # 旧版本单独画 traj 的逻辑被注释掉了
     '''
     # draw planned trajectory
     if traj is not None:
@@ -966,10 +1107,10 @@ def draw_frenet_trajectories(
             picker=picker,
         )
    '''
-    # draw predictions
+
+    # 若有 predictions，则画不确定性预测
     if predictions is not None:
         draw_uncertain_predictions(predictions, ax)
-
     # show the figure until the next one ins ready
     # plt.savefig(str(i).zfill(4) + ".png")
     # i += 1
@@ -985,19 +1126,21 @@ def show_frenet_details(vehicle_params, fp_list, global_path: np.ndarray = None)
         fp_list ([FrenetTrajectory]): Considered frenét trajectories.
         global_path (np.ndarray): Global path of the planning problem. Defaults to None
     """
-    # create the figure
-    fig = plt.figure(constrained_layout=False, figsize=(17, 10))
-    # set the font size
-    plt.rcParams.update({"font.size": 15})
-    # add a gridspec for the subplots
-    gs = fig.add_gridspec(3, 2, left=0.05, top=0.9, right=0.95, wspace=0.3, hspace=0.5)
-    ax1 = fig.add_subplot(gs[:, 0])
-    ax2 = fig.add_subplot(gs[0, 1])
-    ax3 = fig.add_subplot(gs[1, 1])
-    ax4 = fig.add_subplot(gs[2, 1])
 
-    # plot the frenét paths
+    # 创建 figure 和 4 个子图
+    fig = plt.figure(constrained_layout=False, figsize=(17, 10))
+    plt.rcParams.update({"font.size": 15})
+
+    gs = fig.add_gridspec(3, 2, left=0.05, top=0.9, right=0.95, wspace=0.3, hspace=0.5)
+    ax1 = fig.add_subplot(gs[:, 0])   # 左边整列：全局轨迹图
+    ax2 = fig.add_subplot(gs[0, 1])   # 右上：曲率
+    ax3 = fig.add_subplot(gs[1, 1])   # 右中：横向偏移
+    ax4 = fig.add_subplot(gs[2, 1])   # 右下：弧长 s
+
+    # 画所有 Frenet 轨迹
     for fp in fp_list:
+        # 注意：这里用的是 fp.valid，而前面别处大多用 fp.valid_level
+        # 若 fp.valid >= 10 视为有效，用绿色，否则红色
         if fp.valid >= 10:
             col = "g"
         else:
@@ -1009,31 +1152,42 @@ def show_frenet_details(vehicle_params, fp_list, global_path: np.ndarray = None)
     ax1.set_xlabel(r"$x$ in m")
     ax1.set_ylabel(r"$y$ in m")
 
+    # 若给了全局路径，则一并画出来
     if global_path is not None:
         ax1.plot(global_path[:, 0], global_path[:, 1], color="b")
 
-    # curvature
+    # ----------------------------
+    # 曲率子图
+    # ----------------------------
     ax2.set_title("Curvature")
     ax2.set_ylim([-0.5, 0.5])
     ax2.set_ylabel(r"$\kappa$ in rad/m")
     ax2.set_xlabel(r"$t$ in s")
+
     for fp in fp_list:
         ax2.plot(fp.t, fp.curv)
+
+        # 同时计算并画出“当前速度下允许的最大曲率”
         max_curv = []
         for i in range(len(fp.t)):
             max_curv_i, _ = get_max_curvature(vehicle_params=vehicle_params, v=fp.v[i])
             max_curv.append(abs(max_curv_i))
+
         ax2.plot(fp.t, max_curv, color="r")
         ax2.plot(fp.t, np.multiply((-1), max_curv), color="r")
 
-    # lateral offset
+    # ----------------------------
+    # 横向偏移 d 子图
+    # ----------------------------
     ax3.set_title("Lateral offset")
     ax3.set_ylabel(r"$d$ in m")
     ax3.set_xlabel(r"$t$ in s")
     for fp in fp_list:
         ax3.plot(fp.t, fp.d)
 
-    # covered arc length
+    # ----------------------------
+    # 覆盖弧长 s 子图
+    # ----------------------------
     ax4.set_title("Covered arc length")
     ax4.set_ylabel(r"$s$ in m")
     ax4.set_xlabel(r"$t$ in s")
@@ -1059,14 +1213,20 @@ def draw_reach_sets(
         animation_area (float): Area that should be shown. Defaults to 55.0.
         ax (Axes): Plot.
     """
+
     # draw reach sets
     if reach_set is not None:
+        # reach_set 的结构一般像：
+        # reach_set[obj_id] = [ set_1, set_2, ... ]
+        # 每个 set_x 里又按 step 存 polygon 顶点
         for idx in reach_set:
             no_sets = len(reach_set[idx])
             set_nr = 0
             for reach_set_of_id in reach_set[idx]:
                 set_nr += 1
                 for reach_set_step in reach_set_of_id.keys():
+
+                    # 把每个 reachable set polygon 画成半透明蓝色区域
                     polygon = Polygon(
                         reach_set_of_id[reach_set_step],
                         closed=True,
@@ -1086,7 +1246,7 @@ def draw_reach_sets(
                     )
                     ax.add_patch(polygon)
 
-        # align ego position to the center
+        # 把显示范围对齐到 traj 起点附近
         ax.set_xlim(traj.x[0] - animation_area, traj.x[0] + animation_area)
         ax.set_ylim(traj.y[0] - animation_area, traj.y[0] + animation_area)
 
@@ -1127,12 +1287,17 @@ def draw_scenario(
     Returns:
         Axes: Plot with scenario.
     """
-    # clear everything
+
     global i
+
+    # 若没传 ax，则新建一个 subplot
     if ax is None:
         ax = plt.subplot()
+
+    # 清空当前 axes
     ax.cla()
-    # plot the scenario at the current time step
+
+    # 画场景
     draw_object(
         scenario,
         draw_params={
@@ -1148,12 +1313,12 @@ def draw_scenario(
     )
     ax.set_aspect("equal")
 
-    # draw the planning problem
+    # 画 planning problem（起点/终点/目标区域等）
     if planning_problem is not None:
         draw_object(planning_problem, ax=ax)
 
+    # 高亮 ego vehicle
     if marked_vehicle is not None:
-        # mark the ego vehicle
         draw_object(
             obj=scenario.obstacle_by_id(marked_vehicle),
             draw_params={
@@ -1167,12 +1332,13 @@ def draw_scenario(
             },
         )
 
-    # Draw global path
+    # 画全局路径
     if global_path is not None:
         ax.plot(
             global_path[:, 0],
             global_path[:, 1],
-            color="blue",
+            color="turquoise",   # 青绿色
+            alpha=0.5,           # 半透明 (0~1，越小越透明)
             zorder=20,
             label="Global path",
         )
@@ -1185,13 +1351,13 @@ def draw_scenario(
                 linestyle="--",
             )
 
-    # draw driven trajectory
+    # 画 ego 已走过的轨迹
     if driven_traj is not None:
         x = [state.position[0] for state in driven_traj]
         y = [state.position[1] for state in driven_traj]
         ax.plot(x, y, color="green", zorder=25, label="Driven trajectory")
 
-    # draw visible sensor area
+    # 画可视区域
     if visible_area is not None:
         if visible_area.geom_type == "MultiPolygon":
             for geom in visible_area.geoms:
@@ -1203,7 +1369,7 @@ def draw_scenario(
                 if obj.geom_type == "Polygon":
                     ax.fill(*obj.exterior.xy, "g", alpha=0.2, zorder=10)
 
-    # get the target time to show it in the title
+    # 标题中显示目标时间范围
     if hasattr(planning_problem.goal.state_list[0], "time_step"):
         target_time_string = "Target-time: %.1f s - %.1f s" % (
             planning_problem.goal.state_list[0].time_step.start * scenario.dt,
@@ -1212,13 +1378,17 @@ def draw_scenario(
     else:
         target_time_string = "No target-time"
 
-    # ax.legend()
+    # ax.legend() 当前被注释
     ax.set_title(
         "Time: {0:.1f} s".format(time_step * scenario.dt) + "    " + target_time_string
     )
+
+    # 在目标开始前一帧，把 driven_traj pickle 到文件 "test"
+    # 这是一个非常特定的调试/缓存逻辑
     if (time_step == planning_problem.goal.state_list[0].time_step.start - 1):
         with open("test", "wb") as fp:  # Pickling
             pickle.dump(driven_traj, fp)
+
     return ax
 
 # EOF
