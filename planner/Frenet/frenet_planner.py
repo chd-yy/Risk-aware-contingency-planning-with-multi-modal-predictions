@@ -773,28 +773,28 @@ class FrenetPlanner(Planner):
         with self.exec_timer.time_with_cm("plot trajectories"):
             # if self.ego_state.time_step == 0 or self.open_loop == False:
             # 生成 harm/risk 图(需要 risk 模式)
-            if self.params_mode["figures"]["create_figures"] is True:
-                if self.mode == "risk":
-                    create_risk_files(
-                        scenario=self.scenario,
-                        time_step=self.ego_state.time_step,
-                        destination=os.path.join(os.path.dirname(__file__), "results"),
-                        risk_modes=self.params_mode,
-                        weights=self.params_weights,
-                        marked_vehicle=self.ego_id,
-                        planning_problem=self.planning_problem,
-                        traj=ft_list_valid,
-                        global_path=self.global_path_to_goal,
-                        global_path_after_goal=self.global_path_after_goal,
-                        driven_traj=self.driven_traj,
-                    )
+            # if self.params_mode["figures"]["create_figures"] is True:
+            #     if self.mode == "risk":
+            #         create_risk_files(
+            #             scenario=self.scenario,
+            #             time_step=self.ego_state.time_step,
+            #             destination=os.path.join(os.path.dirname(__file__), "results"),
+            #             risk_modes=self.params_mode,
+            #             weights=self.params_weights,
+            #             marked_vehicle=self.ego_id,
+            #             planning_problem=self.planning_problem,
+            #             traj=ft_list_valid,
+            #             global_path=self.global_path_to_goal,
+            #             global_path_after_goal=self.global_path_after_goal,
+            #             driven_traj=self.driven_traj,
+            #         )
 
-                else:
-                    warnings.warn(
-                        "Harm diagrams could not be created."
-                        "Please select mode risk.",
-                        UserWarning,
-                    )
+            #     else:
+            #         warnings.warn(
+            #             "Harm diagrams could not be created."
+            #             "Please select mode risk.",
+            #             UserWarning,
+            #         )
             # 风险仪表盘
             if self.params_mode["risk_dashboard"] is True:
                 if self.mode == "risk":
@@ -816,16 +816,15 @@ class FrenetPlanner(Planner):
                         "Please select mode risk.",
                         UserWarning,
                     )
-
+            print(
+                "Time step: {} | Velocity: {:.2f} m/s | Acceleration: {:.2f} m/s2".format(
+                    self.time_step, current_v, c_s_dd
+                )
+            )
             # print some information about the frenet trajectories
             # 终端打印与本地绘图开关
             if self.plot_frenet_trajectories:
                 matplotlib.use("TKAgg")
-                print(
-                    "Time step: {} | Velocity: {:.2f} m/s | Acceleration: {:.2f} m/s2".format(
-                        self.time_step, current_v, c_s_dd
-                    )
-                )
                 '''
                 Highway_env_branch.plot_scenario(self.mpc, self.N_lane, self.time_step, self.ego_state,
                                                  self.obst_new_state, ft_final_list[0],
@@ -843,48 +842,48 @@ class FrenetPlanner(Planner):
                 #                                      self.obst_new_state, self.traj_rec,
                 #                                      self.state_rec, self.zPred_rec)
 
-            try:
-                '''
-                draw_all_contingent_trajectories(
-                    scenario=self.scenario,
-                    time_step=self.ego_state.time_step,
-                    marked_vehicle=self.ego_id,
-                    planning_problem=self.planning_problem,
-                    traj=None,
-                    global_path=self.global_path_to_goal,
-                    global_path_after_goal=self.global_path_after_goal,
-                    driven_traj=self.driven_traj,
-                    animation_area=50.0,
-                    predictions=predictions,
-                    visible_area=visible_area,
-                    valid_traj=ft_final_list,
-                    best_traj=self.contingency_trajectory,
-                    open_loop=self.open_loop,
-                )
-                '''
-                # 绘制所有计划(shared+contingent)与最优选择
-                draw_all_plans(
-                    scenario=self.scenario,
-                    time_step=self.ego_state.time_step,
-                    marked_vehicle=self.ego_id,
-                    planning_problem=self.planning_problem,
-                    traj=None,
-                    global_path=self.global_path,
-                    global_path_after_goal=self.global_path_after_goal,
-                    driven_traj=self.driven_traj,
-                    animation_area=50.0,
-                    predictions=predictions,
-                    visible_area=visible_area,
-                    valid_traj=ft_all_plans_list,  # 所有候选(按 shared 分组)
-                    best_traj=ft_final_list,       # 最终计划列表(按总代价排序)
-                    open_loop=self.open_loop,
-                )
+                try:
+                    '''
+                    draw_all_contingent_trajectories(
+                        scenario=self.scenario,
+                        time_step=self.ego_state.time_step,
+                        marked_vehicle=self.ego_id,
+                        planning_problem=self.planning_problem,
+                        traj=None,
+                        global_path=self.global_path_to_goal,
+                        global_path_after_goal=self.global_path_after_goal,
+                        driven_traj=self.driven_traj,
+                        animation_area=50.0,
+                        predictions=predictions,
+                        visible_area=visible_area,
+                        valid_traj=ft_final_list,
+                        best_traj=self.contingency_trajectory,
+                        open_loop=self.open_loop,
+                    )
+                    '''
+                    # 绘制所有计划(shared+contingent)与最优选择
+                    draw_all_plans(
+                        scenario=self.scenario,
+                        time_step=self.ego_state.time_step,
+                        marked_vehicle=self.ego_id,
+                        planning_problem=self.planning_problem,
+                        traj=None,
+                        global_path=self.global_path,
+                        global_path_after_goal=self.global_path_after_goal,
+                        driven_traj=self.driven_traj,
+                        animation_area=50.0,
+                        predictions=predictions,
+                        visible_area=visible_area,
+                        valid_traj=ft_all_plans_list,  # 所有候选(按 shared 分组)
+                        best_traj=ft_final_list,       # 最终计划列表(按总代价排序)
+                        open_loop=self.open_loop,
+                    )
 
-            except Exception as e:
-                print(e)
+                except Exception as e:
+                    print(e)
             # 初始时刻保存 contingency_trajectory(用于 open loop 可能复用)
-            if self.ego_state.time_step == 0:
-                self.contingency_trajectory = ft_final_list  # 第一次迭代记录全套计划,供可视化或调试
+            # if self.ego_state.time_step == 0:
+            #     self.contingency_trajectory = ft_final_list  # 第一次迭代记录全套计划,供可视化或调试
 
             # best trajectory
             # 选择 best trajectory(用于更新 self._trajectory)
@@ -949,7 +948,7 @@ if __name__ == "__main__":
                                               ".xml")
     # --scenario:指定要评测的场景路径
     # 默认值被拆成两段字符串拼接(Python 会自动连接相邻字符串常量)
-    parser.add_argument("--time", action="store_true")  # 若传入 --time,则启用 cProfile 输出性能
+    parser.add_argument("--time", action="store_true", default=False)  # 若传入 --time,则启用 cProfile 输出性能
     # --time:布尔开关参数
     # - 不传入时 args.time == False
     # - 传入 --time 时 args.time == True,用于启用 cProfile 性能分析并输出报告

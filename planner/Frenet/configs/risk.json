@@ -15,9 +15,9 @@
   "fast_prob_mahalanobis": false,
 
   "figures": {
-    "create_figures": false,
+    "create_figures": true,
     "number_plotted_trajectories": 3
   },
-  "risk_dashboard": false,
+  "risk_dashboard": true,
   "collision_report": true
 }

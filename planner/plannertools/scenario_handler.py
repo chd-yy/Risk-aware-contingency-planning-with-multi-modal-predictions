@@ -252,40 +252,40 @@ class ScenarioHandler:
         # 进入主循环:time_step 从 0 到 max_simulation_time_steps - 1
         auto_play = False
         for time_step in range(max_simulation_time_steps):
-            if auto_play:
-                cmd = input(
-                    f"[time_step={time_step}] 自动播放中: 回车继续, 输入 a 暂停, d 单步, q 退出: "
-                ).strip().lower()
+            # if auto_play:
+            #     cmd = input(
+            #         f"[time_step={time_step}] 自动播放中: 回车继续, 输入 a 暂停, d 单步, q 退出: "
+            #     ).strip().lower()
 
-                if cmd == "":
-                    pass
-                elif cmd == "a":
-                    auto_play = False
-                    print("Auto play: OFF")
-                    continue
-                elif cmd == "d":
-                    auto_play = False
-                    print("切到单步模式，执行当前这一步")
-                elif cmd == "q":
-                    print("Quit simulation")
-                    break
-                else:
-                    print("无效输入，默认继续自动播放")
-            else:
-                cmd = input(
-                    f"[time_step={time_step}] 暂停中: 输入 d 单步, a 自动播放, q 退出: "
-                ).strip().lower()
-                if cmd == "d":
-                    pass
-                elif cmd == "a":
-                    auto_play = True
-                    print("Auto play: ON")
-                elif cmd == "q":
-                    print("Quit simulation")
-                    break
-                else:
-                    print("无效输入，请输入 d / a / q")
-                    continue
+            #     if cmd == "":
+            #         pass
+            #     elif cmd == "a":
+            #         auto_play = False
+            #         print("Auto play: OFF")
+            #         continue
+            #     elif cmd == "d":
+            #         auto_play = False
+            #         print("切到单步模式，执行当前这一步")
+            #     elif cmd == "q":
+            #         print("Quit simulation")
+            #         break
+            #     else:
+            #         print("无效输入，默认继续自动播放")
+            # else:
+            #     cmd = input(
+            #         f"[time_step={time_step}] 暂停中: 输入 d 单步, a 自动播放, q 退出: "
+            #     ).strip().lower()
+            #     if cmd == "d":
+            #         pass
+            #     elif cmd == "a":
+            #         auto_play = True
+            #         print("Auto play: ON")
+            #     elif cmd == "q":
+            #         print("Quit simulation")
+            #         break
+            #     else:
+            #         print("无效输入，请输入 d / a / q")
+            #         continue
             for agent in self.agent_list:
                 # Also pass in timestep because it is needed in the recorder
                 # That gets derived from the evaluator
