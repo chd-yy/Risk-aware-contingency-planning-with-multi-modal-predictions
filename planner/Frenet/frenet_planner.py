@@ -511,8 +511,8 @@ class FrenetPlanner(Planner):
             # NOTE: 你这里覆盖了 frenet_parameters["d_list"],改成固定从 -3.6 到 0 的 10 点
             # 这相当于只在某一侧车道范围采样(比如只向左变道或只向右回正)
             # 若要更通用,应该用 self.frenet_parameters["d_list"]
-            d_list = self.frenet_parameters["d_list"]
-            # d_list = np.linspace(-3.6, 3.6, 10)
+            # d_list = self.frenet_parameters["d_list"]
+            d_list = np.linspace(-1.8, 1.8, 10)
             t_list = self.frenet_parameters["t_list"]
             # breakpoint()
             # if self.ego_state.time_step == 0 or self.open_loop is False:
@@ -706,8 +706,8 @@ class FrenetPlanner(Planner):
                 t_max = max(self.contingency_parameters["t_list"])
 
                 # NOTE: 同样覆盖 contingency_parameters["d_list"],固定采样 -3.6..0
-                d_list = self.contingency_parameters["d_list"]
-                # d_list = np.linspace(-3.6, 3.6, 6)
+                # d_list = self.contingency_parameters["d_list"]
+                d_list = np.linspace(-1.8, 1.8, 6)
                 t_list = self.contingency_parameters["t_list"]
 
                 ft_final_list = []       # 每个 shared 轨迹对应一个 final_plan(字典)

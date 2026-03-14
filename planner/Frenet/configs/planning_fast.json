@@ -7,11 +7,11 @@
   "frenet_settings": {
     "mode": "risk",
     "frenet_parameters": {
-      "t_list": [2.4],
+      "t_list": [1.4],
       "v_list_generation_mode": "linspace",
       "n_v_samples": 10,
       "d_list": {
-        "d_max_abs": 3.6,
+        "d_max_abs": 1.8,
         "n": 10
       },
       "dt": 0.1,

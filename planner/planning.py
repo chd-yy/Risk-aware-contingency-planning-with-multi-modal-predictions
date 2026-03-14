@@ -596,7 +596,7 @@ class Planner(object):
             # print(reference_spline_20044.calc_position(0.0))
             # print(reference_spline_20044.calc_yaw(0.0))
 
-            # print(self.__reference_spline.calc_position(10.0))
+            print(self.__reference_spline.calc_position(0.0))
 
             # print(self.__reference_spline.calc_yaw(0.0))
 

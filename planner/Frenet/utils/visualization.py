@@ -742,7 +742,7 @@ def draw_all_plans(
             ax.plot(
                 valid_traj[i][key].x,
                 valid_traj[i][key].y,
-                alpha=0.02,
+                alpha=0.2,
                 color=colorset[j],
                 zorder=25,
                 label="Best trajectory",
@@ -1318,20 +1318,20 @@ def draw_scenario(
         draw_object(planning_problem, ax=ax)
 
     # 高亮 ego vehicle
-    if marked_vehicle is not None:
-        draw_object(
-            # obj=scenario.obstacle_by_id(marked_vehicle),
-            obj=scenario.dynamic_obstacles,
-            draw_params={
-                "time_begin": time_step,
-                "facecolor": "g",
-                "dynamic_obstacle": {
-                    "draw_shape": False,
-                    "draw_bounding_box": False,
-                    "draw_icon": True,
-                },
-            },
-        )
+    # if marked_vehicle is not None:
+    #     draw_object(
+    #         # obj=scenario.obstacle_by_id(marked_vehicle),
+    #         obj=scenario.dynamic_obstacles,
+    #         draw_params={
+    #             "time_begin": time_step,
+    #             "facecolor": "g",
+    #             "dynamic_obstacle": {
+    #                 "draw_shape": False,
+    #                 "draw_bounding_box": False,
+    #                 "draw_icon": True,
+    #             },
+    #         },
+    #     )
 
     # 画全局路径
     if global_path is not None:
