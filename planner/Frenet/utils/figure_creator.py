@@ -1,7 +1,8 @@
 #!/user/bin/env python
 
 """Tools to visualize scenarios or to create figures."""
-
+import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import os
 import sys

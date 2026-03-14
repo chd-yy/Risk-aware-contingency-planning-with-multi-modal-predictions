@@ -4,6 +4,7 @@ import os
 from analyze_log import FrenetLogVisualizer
 from itertools import groupby
 import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
 matplotlib.use('Agg')

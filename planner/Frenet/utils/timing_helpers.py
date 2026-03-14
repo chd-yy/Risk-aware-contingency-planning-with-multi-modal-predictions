@@ -3,6 +3,8 @@
 """Helper functions to get the execution times of the frenét planner."""
 
 import time
+import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import numpy as np
 import os

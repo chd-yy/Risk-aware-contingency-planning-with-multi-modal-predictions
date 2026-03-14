@@ -18,8 +18,9 @@ from commonroad_helper_functions.visualization import (
 )
 
 import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib
+matplotlib.use("TkAgg")
+import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.animation as animation
 
@@ -663,7 +664,6 @@ def draw_all_plans(
     """
     画出所有 shared plans + all contingent plans，并高亮 best plan。
     """
-
     if live:
         ax = draw_scenario(
             scenario,
@@ -688,14 +688,17 @@ def draw_all_plans(
         ax.set_ylabel("y[m]")
 
         # align ego position to the center
-        ax.set_xlim(
-            valid_traj[0]['shared_plan'].x[0] - animation_area / 6,
-            valid_traj[0]['shared_plan'].x[0] + animation_area - 15
-        )
+        # ax.set_xlim(
+        #     valid_traj[0]['shared_plan'].x[0] - animation_area / 6,
+        #     valid_traj[0]['shared_plan'].x[0] + animation_area - 15
+        # )
 
         # 同样硬编码 y 范围，确保画面居中
+        ax.set_xlim(
+            -45, 40
+        )
         ax.set_ylim(
-            -3.6, 10.8
+            -37, 24
         )
 
     # best trajectory
@@ -714,7 +717,7 @@ def draw_all_plans(
     # 先把所有 shared_plan 用淡黑色画出来
     # j = 0
     for p in reversed(valid_traj):
-        ax.plot(p['shared_plan'].x, p['shared_plan'].y, alpha=0.02, color='k', zorder=25, picker=picker)
+        ax.plot(p['shared_plan'].x, p['shared_plan'].y, alpha=0.5, color='k', zorder=25, picker=picker)
         # j = j + 1
         # print(f"Loop count: {j}") 
 
@@ -1293,7 +1296,6 @@ def draw_scenario(
 
     # 清空当前 axes
     ax.cla()
-
     # 画场景
     draw_object(
         scenario,
@@ -1303,7 +1305,8 @@ def draw_scenario(
                 "draw_shape": True,
                 "draw_bounding_box": False,
                 "draw_icon": False,
-                "show_label": show_label,
+                # TODO
+                "show_label": False,
             },
         },
         ax=ax,
@@ -1317,7 +1320,8 @@ def draw_scenario(
     # 高亮 ego vehicle
     if marked_vehicle is not None:
         draw_object(
-            obj=scenario.obstacle_by_id(marked_vehicle),
+            # obj=scenario.obstacle_by_id(marked_vehicle),
+            obj=scenario.dynamic_obstacles,
             draw_params={
                 "time_begin": time_step,
                 "facecolor": "g",
@@ -1367,7 +1371,7 @@ def draw_scenario(
                     ax.fill(*obj.exterior.xy, "g", alpha=0.2, zorder=10)
 
     # 标题中显示目标时间范围
-    if hasattr(planning_problem.goal.state_list[0], "time_step"):
+    if planning_problem is not None and hasattr(planning_problem.goal.state_list[0], "time_step"):
         target_time_string = "Target-time: %.1f s - %.1f s" % (
             planning_problem.goal.state_list[0].time_step.start * scenario.dt,
             planning_problem.goal.state_list[0].time_step.end * scenario.dt,
@@ -1375,13 +1379,16 @@ def draw_scenario(
     else:
         target_time_string = "No target-time"
 
+
     # ax.legend() 当前被注释
+    # TODO(yanjun) : 暂时注释掉，正常需要打开
     ax.set_title(
         "Time: {0:.1f} s".format(time_step * scenario.dt) + "    " + target_time_string
     )
 
     # 在目标开始前一帧，把 driven_traj pickle 到文件 "test"
     # 这是一个非常特定的调试/缓存逻辑
+    # TODO(yanjun) : 暂时注释掉，正常需要打开
     if (time_step == planning_problem.goal.state_list[0].time_step.start - 1):
         with open("test", "wb") as fp:  # Pickling
             pickle.dump(driven_traj, fp)

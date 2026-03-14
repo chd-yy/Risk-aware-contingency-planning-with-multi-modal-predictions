@@ -1,6 +1,8 @@
 """Function to create figures in "Bilder/results"."""
 
 import os
+import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import numpy as np
 from commonroad.visualization.draw_dispatch_cr import draw_object

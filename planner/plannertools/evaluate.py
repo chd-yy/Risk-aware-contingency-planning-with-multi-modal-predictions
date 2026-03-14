@@ -69,7 +69,7 @@ class ScenarioEvaluator(ScenarioHandler):
         self.exec_timer.reset()
         # 拼接场景文件完整路径:path_to_scenarios / scenario_path
         self.scenario_path = self.path_to_scenarios.joinpath(scenario_path)
-        print(f"(eval_scenario)self.scenario_path: {self.scenario_path}")
+        # print(f"(eval_scenario)self.scenario_path: {self.scenario_path}")
         # 记录开始时间,用于计算整个 eval_scenario 耗时
         start_time = time.time()
         # 用计时器记录 total 这个大步骤耗时

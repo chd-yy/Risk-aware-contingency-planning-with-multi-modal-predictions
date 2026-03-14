@@ -1,6 +1,7 @@
 """Module for creating a animation of a scenario driven by a planner."""
 import pathlib
-
+import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import numpy as np
 from EthicalTrajectoryPlanning.planner.plannertools.scenario_handler import ScenarioHandler

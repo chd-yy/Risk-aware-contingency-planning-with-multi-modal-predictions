@@ -140,6 +140,7 @@ def calc_risk(
     # ---------------------------------------------------------
     # Step 2：计算碰撞伤害
     # ---------------------------------------------------------
+    # TODO(yanjun): check if the calculation is correct
     ego_harm_traj, obst_harm_traj = get_harm(
         scenario, traj, predictions, ego_id, vehicle_params, modes, coeffs, timer, start_idx, mode_num
     )
@@ -205,18 +206,27 @@ def calc_risk(
         # -----------------------------------------------------
 
         # 如果是 shared plan（mode_num=100），则根据 belief 对风险进行加权
-        if mode_num == 100:
-            belief_idx = 0
-            # This means this is the shared part of the plan
-            for mode in range(len(ego_harm_traj[key])):
-                # 每3个mode属于同一行为
-                if mode % 3 == 0:
-                    belief_idx += 1
-                # 乘以 belief 权重
-                ego_risk_traj_list[mode] = [belief[belief_idx - 1] * num for num in ego_risk_traj_list[mode]]
-                ego_harm_traj_list[mode] = [belief[belief_idx - 1] * num for num in ego_harm_traj_list[mode]]
-                obst_harm_traj_list[mode] = [belief[belief_idx - 1] * num for num in obst_harm_traj_list[mode]]
-                obst_risk_traj_list[mode] = [belief[belief_idx - 1] * num for num in obst_risk_traj_list[mode]]
+        if mode_num == 100 and belief is not None:
+            mode_count = len(ego_harm_traj[key])
+            obstacle_belief = belief.get(key) if isinstance(belief, dict) else belief
+            if obstacle_belief is None:
+                mode_weights = [1.0 / mode_count] * mode_count
+            elif len(obstacle_belief) == mode_count:
+                mode_weights = obstacle_belief
+            elif len(obstacle_belief) > 0 and mode_count % len(obstacle_belief) == 0:
+                repeat = mode_count // len(obstacle_belief)
+                mode_weights = []
+                for weight in obstacle_belief:
+                    mode_weights.extend([weight] * repeat)
+            else:
+                mode_weights = [1.0 / mode_count] * mode_count
+
+            for mode in range(mode_count):
+                weight = mode_weights[mode]
+                ego_risk_traj_list[mode] = [weight * num for num in ego_risk_traj_list[mode]]
+                ego_harm_traj_list[mode] = [weight * num for num in ego_harm_traj_list[mode]]
+                obst_harm_traj_list[mode] = [weight * num for num in obst_harm_traj_list[mode]]
+                obst_risk_traj_list[mode] = [weight * num for num in obst_risk_traj_list[mode]]
                 '''
               
                 ego_risk_traj_list[mode] = [belief[mode + 3] * num for num in ego_risk_traj_list[mode]]

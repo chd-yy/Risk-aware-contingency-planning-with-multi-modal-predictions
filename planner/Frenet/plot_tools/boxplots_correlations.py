@@ -1,6 +1,8 @@
 """Create beautiful correleation boxplots."""
 
 import json
+import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 import numpy as np

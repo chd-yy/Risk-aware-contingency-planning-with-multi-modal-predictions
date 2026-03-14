@@ -7,7 +7,7 @@
   "frenet_settings": {
     "mode": "risk",
     "frenet_parameters": {
-      "t_list": [0.8],
+      "t_list": [2.4],
       "v_list_generation_mode": "linspace",
       "n_v_samples": 10,
       "d_list": {

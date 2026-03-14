@@ -139,11 +139,15 @@ class PlanningAgent(Agent):
             # predictor.step(...) 的含义:让预测器“在当前时刻”给出预测
             # obstacle_id_list:需要预测的动态障碍物 ID 列表
             # multiprocessing=False:不使用多进程
+            # print(type(self.scenario.dynamic_obstacles))
+            # print(self.scenario.dynamic_obstacles)
+            obstacle_id_list = [obstacle.obstacle_id for obstacle in self.scenario.dynamic_obstacles]
+            # breakpoint()
             self.predictor.step(
                 scenario=self.scenario,
                 time_step=self.time_step,
-                obstacle_id_list=list(self.scenario.dynamic_obstacles.keys()),
-                multiprocessing=False,
+                obstacle_id_list=obstacle_id_list,
+                # multiprocessing=False,
             )
             # 得到预测结果
             prediction = self.predictor.prediction_result
@@ -353,7 +357,7 @@ class Planner(object):
 
         # 你自定义的:障碍物新状态(看起来像 [x,y,v,psi] 的某种格式)
         # TODO(yanjun): hard coded for now, need to be updated according to the actual scenario and prediction
-        self.obst_new_state = [9.5844, 5.4, 20, 0]
+        # self.obst_new_state = [9.5844, 5.4, 20, 0]
 
         # --------------------------------------------
         # ExecTimer:用于统计某些代码块耗时
@@ -392,22 +396,21 @@ class Planner(object):
         '''
 
         # File path of the pickle file
-        '''
         file_path = 'belief_updater.pickle'
-
         # Load the vector from the pickle file
         with open(file_path, 'rb') as file:
             self.belief = pickle.load(file)
-
+        # 这里是场景的belief
         self.belief = self.belief[7:]
         self.min_dist = 1000
         self.traveled_dist = 0
-        '''
+
         # --------------------------------------------
         # belief:这里像是你做“模式/意图”概率的先验
         # 你把它设置成 3 个模式的概率:[0.5, 0.4, 0.1]
         # --------------------------------------------
-        self.belief = [0.5, 0.4, 0.1]
+        # TODO(yanjun): hard coded
+        # self.belief = [0.5, 0.4, 0.1]
 
         # trajectory
         dt = 0.1
@@ -537,14 +540,46 @@ class Planner(object):
         """
         # 用计时器包裹这个代码块,统计“规划全局路径”的耗时
         with self.exec_timer.time_with_cm("initialization/plan global path"):
-            x = []
-            y = []
+            x = [
+                15.9923642,            18.96435,            6.06495,
+                4.85655,            3.4265,            2.32685,
+                1.10915,            -0.20755,            -1.58235,
+                -2.96815,            -4.98995,            -6.89705,
+                -8.10415,            -54.06815,            -100.0234
+                ]
+
+            y = [
+                -21.86624793,            -26.72005,            -6.12275,
+                -4.42595,            -2.91335,            -2.0663,
+                -1.40115,            -0.96475,            -0.7815,
+                -0.8549,            -1.3449,            -2.181,
+                -2.8721,            -31.6067,            -60.3365
+                ]
+            # x_20044 = [
+            # -13.80150327,
+            # -5.7196,
+            # -1.31025,
+            # 3.10105,
+            # 15.99805,
+            # 28.8915
+            # ]
+
+            # y_20044 = [
+            # 18.76672966,
+            # 5.9996,
+            # -0.9907,
+            # -7.9814,
+            # -28.57775,
+            # -49.16435
+            # ]
+
             # 生成 100 个点:
             # x 从 -8 开始,每次 +3
             # y 固定为 -5.4
-            for i in range(100):
-                x.append(-8 + i * 3)
-                y.append(5.4)
+            # TODO(yanjun): hard code
+            # for i in range(100):
+            #     x.append(-8 + i * 3)
+            #     y.append(5.4)
                 # x = [-8, -6, -4, -2, 0, 2, 4, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 20]
                 # y = [-1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8]
             self.global_path = np.transpose(np.array([x, y]))
@@ -554,6 +589,16 @@ class Planner(object):
             self.__reference_spline = CubicSpline2D(
                 x=self.global_path[:, 0], y=self.global_path[:, 1]
             )
+            # reference_spline_20044 = CubicSpline2D(
+            #     x=x_20044, y=y_20044
+            # )
+            # breakpoint()
+            # print(reference_spline_20044.calc_position(0.0))
+            # print(reference_spline_20044.calc_yaw(0.0))
+
+            # print(self.__reference_spline.calc_position(10.0))
+
+            # print(self.__reference_spline.calc_yaw(0.0))
 
     # ========== 一堆只读属性(getter)==========
     @property

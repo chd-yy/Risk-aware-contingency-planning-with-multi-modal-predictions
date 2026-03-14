@@ -35,10 +35,13 @@ import pathlib
 import pickle
 import time
 import math
+from itertools import product
 
 # Third party imports
 import numpy as np
 import matplotlib
+matplotlib.use("TkAgg")
+import matplotlib.pyplot as plt
 # CommonRoad 核心对象
 from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.scenario.scenario import Scenario
@@ -96,6 +99,7 @@ from beliefplanning.planner.Frenet.utils.prediction_helpers import (
     belief_updater,
     get_obstacles_prediction_overtake,
     get_prediction_from_scenario_tree, # 你在 _step_planner 里用这个把 zPred -> predictions
+    build_multimodal_gmm_predictions,
 )
 
 # 读取 json 配置:伤害模型/规划参数/风险参数/权重/应急规划参数
@@ -155,7 +159,7 @@ class FrenetPlanner(Planner):
             exec_timer=None,
             frenet_parameters: dict = None,
             contingency_parameters: dict = None,
-            sensor_radius: float = 55.0,
+            sensor_radius: float = 11155.0,
             plot_frenet_trajectories: bool = False,
             weights=None,
             settings=None,
@@ -180,6 +184,7 @@ class FrenetPlanner(Planner):
         # 分支 MPC/环境相关(你用于 overtaking 分支预测)
         self.N_lane = None
         self.mpc = None
+        self.obst_new_state = None
 
         # 记录各时刻的轨迹/状态/预测,便于复现或可视化
         self.traj_rec = []
@@ -506,11 +511,12 @@ class FrenetPlanner(Planner):
             # NOTE: 你这里覆盖了 frenet_parameters["d_list"],改成固定从 -3.6 到 0 的 10 点
             # 这相当于只在某一侧车道范围采样(比如只向左变道或只向右回正)
             # 若要更通用,应该用 self.frenet_parameters["d_list"]
-            # d_list = self.frenet_parameters["d_list"]
-            d_list = np.linspace(-3.6, 0, 10)
+            d_list = self.frenet_parameters["d_list"]
+            # d_list = np.linspace(-3.6, 3.6, 10)
             t_list = self.frenet_parameters["t_list"]
-
+            # breakpoint()
             # if self.ego_state.time_step == 0 or self.open_loop is False:
+            # breakpoint()
             ft_list = calc_frenet_trajectories(
                 c_s=c_s,
                 c_s_d=c_s_d,
@@ -536,30 +542,104 @@ class FrenetPlanner(Planner):
                 n_samples=self.frenet_parameters["n_v_samples"],
                 contin=False
             )
+        # =========================
+        # E) 多模态预测:目标车道 -> 模式轨迹 -> GMM -> 初始模式概率
+        # =========================
+        state_rec = None
+        zPred = None
+        visible_area = None  # NOTE: 这里没计算可见域,绘图时可能会用到
+        predictions = None
+        prediction_belief = None
+        joint_mode_selections = []
 
-        # =========================
-        # E) 预测:用 Branching MPC 生成 scenario tree -> predictions
-        # =========================
         with self.exec_timer.time_with_cm("simulation/prediction"):
-            # Overwrite later
-            visible_area = None  # NOTE: 这里没计算可见域,绘图时可能会用到
-            # 调用分支 MPC 仿真获取多模式预测及对应权重
-            backup, zPred, state_rec, branch_w = self.sim_overtake()
-            # predictions = get_obstacles_prediction_overtake(zPred, backup)
-            # 将 zPred 转换成 predictions(你的 risk/cost/validity 期望的格式)
-            predictions = get_prediction_from_scenario_tree(zPred)
-            # 用预测换算的状态覆盖 CommonRoad 障碍物,保证下游检测一致
-            # NOTE: 下面这几行直接改 scenario.dynamic_obstacles[0].initial_state
-            # 这在 CommonRoad 里可能有副作用:你在运行过程中“篡改”了场景初始状态
-            # 建议:不要改 initial_state,而是改一个当前 state 或单独的预测结构
-            self.scenario.dynamic_obstacles[0].initial_state.position[0] = state_rec[1][0][0]
-            self.scenario.dynamic_obstacles[0].initial_state.position[1] = state_rec[1][0][1]
-            self.scenario.dynamic_obstacles[0].initial_state.orientation = state_rec[1][0][3]
+            visible_obstacle_ids = get_obstacles_in_radius(
+                scenario=self.scenario,
+                ego_id=self.ego_id,
+                ego_state=self.ego_state,
+                radius=self.sensor_radius,
+            )
+            # breakpoint()
+            pred_horizon = max(
+                int(max(self.frenet_parameters["t_list"]) / self.frenet_parameters["dt"]),
+                int(max(self.contingency_parameters["t_list"]) / self.contingency_parameters["dt"]),
+                1,
+            ) + 1
 
+            if self.prediction is not None:
+                base_predictions = {
+                    obstacle_id: self.prediction[obstacle_id]
+                    for obstacle_id in visible_obstacle_ids
+                    if obstacle_id != self.ego_id and obstacle_id in self.prediction
+                }
+                if len(base_predictions) > 0:
+                    predictions = build_multimodal_gmm_predictions(
+                        scenario=self.scenario,
+                        base_prediction=base_predictions,
+                        obstacle_id_list=list(base_predictions.keys()),
+                        horizon=pred_horizon,
+                        timestep=self.ego_state.time_step,
+                    )
+            elif len(visible_obstacle_ids) > 0:
+                predictions = get_ground_truth_prediction(
+                    obstacle_ids=visible_obstacle_ids,
+                    scenario=self.scenario,
+                    time_step=self.ego_state.time_step,
+                    pred_horizon=pred_horizon,
+                )
+
+            if predictions is not None and len(predictions) > 0:
+                predictions = get_orientation_velocity_and_shape_of_prediction(
+                    predictions,
+                    self.scenario,
+                )
+                prediction_belief = {
+                    obstacle_id: pred["mode_prob"]
+                    for obstacle_id, pred in predictions.items()
+                    if pred.get("mode_prob") is not None
+                }
+                multimodal_obstacle_ids = []
+                multimodal_mode_ranges = []
+                for obstacle_id, pred in predictions.items():
+                    pos_list = pred.get("pos_list")
+                    if isinstance(pos_list, list) and len(pos_list) > 1:
+                        multimodal_obstacle_ids.append(obstacle_id)
+                        multimodal_mode_ranges.append(range(len(pos_list)))
+
+                if len(multimodal_obstacle_ids) > 0:
+                    joint_mode_selections = [
+                        dict(zip(multimodal_obstacle_ids, mode_indices))
+                        for mode_indices in product(*multimodal_mode_ranges)
+                    ]
+
+        def _get_joint_mode_weights(mode_belief, mode_selections):
+            if not mode_selections:
+                return [1.0]
+            if not isinstance(mode_belief, dict) or len(mode_belief) == 0:
+                uniform_weight = 1.0 / len(mode_selections)
+                return [uniform_weight] * len(mode_selections)
+
+            joint_weights = []
+            for mode_selection in mode_selections:
+                joint_weight = 1.0
+                for obstacle_id, mode_idx in mode_selection.items():
+                    obstacle_belief = mode_belief.get(obstacle_id)
+                    if obstacle_belief is None or mode_idx >= len(obstacle_belief):
+                        joint_weight = 0.0
+                        break
+                    joint_weight *= obstacle_belief[mode_idx]
+                joint_weights.append(joint_weight)
+
+            weight_sum = sum(joint_weights)
+            if weight_sum <= 0.0:
+                uniform_weight = 1.0 / len(mode_selections)
+                return [uniform_weight] * len(mode_selections)
+            inv_weight_sum = 1.0 / weight_sum
+            return [weight * inv_weight_sum for weight in joint_weights]
         # =========================
         # F) 可达集计算(责任相关)
         # =========================
-        if self.responsibility:
+        if self.responsibility and predictions is not None:
             with self.exec_timer.time_with_cm(
                     "simulation/calculate and check reachable sets"
             ):
@@ -574,14 +654,21 @@ class FrenetPlanner(Planner):
 
             # 当前 belief 直接使用分支树概率,可依据需要替换为 Bayesian belief_updater
             # sorted list (increasing costs)
+            '''
+            如果当前是第0步，或者系统不是open-loop，
 
-            # if self.ego_state.time_step == 0 or self.open_loop is False:
-            # belief = [self.belief[self.ego_state.time_step], 1 - self.belief[self.ego_state.time_step]]
+            那么根据当前时间步的belief值
+            构造一个两元素概率向量：
+
+            belief = [p, 1-p]
+            '''
+            belief = prediction_belief
             # belief(分支概率)用于风险/代价权重
             # NOTE: 你这里 belief=branch_w(来自 MPC),而不是 belief_updater 的输出
-            belief = branch_w
+            # belief = branch_w
             # belief = [1] * 12
             # 基于碰撞/越界/舒适性指标筛选轨迹,返回按成本排序前的有效/无效集合
+            # breakpoint()
             ft_list_valid, ft_list_invalid, validity_dict = sort_frenet_trajectories(
                 ego_state=self.ego_state,
                 fp_list=ft_list,
@@ -619,8 +706,8 @@ class FrenetPlanner(Planner):
                 t_max = max(self.contingency_parameters["t_list"])
 
                 # NOTE: 同样覆盖 contingency_parameters["d_list"],固定采样 -3.6..0
-                # d_list = self.contingency_parameters["d_list"]
-                d_list = np.linspace(-3.6, 0, 6)
+                d_list = self.contingency_parameters["d_list"]
+                # d_list = np.linspace(-3.6, 3.6, 6)
                 t_list = self.contingency_parameters["t_list"]
 
                 ft_final_list = []       # 每个 shared 轨迹对应一个 final_plan(字典)
@@ -698,7 +785,7 @@ class FrenetPlanner(Planner):
                         # predictions[1]['pos_list']:推测是 obstacle id=1 的多个模式位置序列
                         # mode_num 遍历每个模式,sort_frenet_trajectories 用 mode_num 选择对应预测分支
                         # 针对每一个预测模式(不同障碍路径),挑选最便宜的备选轨迹
-                        for mode_num in range(len(predictions[1]['pos_list'])):
+                        for mode_num, mode_selection in enumerate(joint_mode_selections):
                             ft_conting_list_valid, ft_conting_list_invalid, validity_conting_dict = sort_frenet_trajectories(
                                 ego_state=self.ego_state,
                                 fp_list=ft_contingent_list,
@@ -716,14 +803,15 @@ class FrenetPlanner(Planner):
                                 exec_timer=self.exec_timer,
                                 # start_idx:从 shared horizon 结束处开始评估(避免重复从0开始)
                                 start_idx=int(max(self.frenet_parameters["t_list"]) / self.frenet_parameters["dt"]),
-                                mode_num=mode_num,
+                                mode_num=mode_selection,
                                 reach_set=(self.reach_set if self.responsibility else None)
                             )
                             # 按 cost 排序,选最小 cost 的 contingent 作为该 mode 的最优
                             ft_conting_list_valid.sort(key=lambda fp: fp.cost, reverse=False)
                             # NOTE: 若 ft_conting_list_valid 为空会 IndexError
                             # 建议:做保护:if not ft_conting_list_valid: continue/用备选
-                            final_plan[mode_num] = ft_conting_list_valid[0]
+                            if len(ft_conting_list_valid) > 0:
+                                final_plan[mode_num] = ft_conting_list_valid[0]
 
                     ft_final_list.append(final_plan)
 
@@ -739,29 +827,22 @@ class FrenetPlanner(Planner):
                 # =========================
                 # NOTE: 你这里 belief_updater 被注释掉了,用的是 branch_w
                 # 将共享轨迹与各模式应急轨迹组合,形成总成本；权重来源于分支概率
-                            
+                # breakpoint()
                 for plan in ft_final_list:
                     if len(plan) == 1:
                         # This means we have only a single plan along the horizon
                         # 只有 shared_plan,没有 contingent(例如 t_list[0]==0 或没算 contingent)
                         plan['cost'] = plan['shared_plan'].cost
                     else:
-                        # 有 contingent:总代价 = shared_cost + Σ belief_i * contingent_cost_i
-                        # BUG?: 你这里写法有明显换行拼接问题,会导致 Python 语法/结果错误:
-                        # plan['cost'] = plan['shared_plan'].cost + branch_w[0] * plan[0].cost + branch_w[1] * plan[3].cost
-                        # + branch_w[2] * plan[6].cost
-                        #
-                        # 正确写法应该用括号包起来:
-                        # plan['cost'] = plan['shared_plan'].cost + (
-                        #     branch_w[0]*plan[0].cost + branch_w[1]*plan[3].cost + branch_w[2]*plan[6].cost
-                        # )
-                        #
-                        # 另外:你这里用 plan[0], plan[3], plan[6] 是硬编码索引,
-                        # 但上面 final_plan[mode_num] 的 mode_num 是 range(len(predictions[1]['pos_list']))
-                        # 不一定是 {0,3,6} 这种步长。应按实际 mode_num 集合遍历求和。
-                        plan['cost'] = plan['shared_plan'].cost + branch_w[0] * plan[0].cost + branch_w[1] * plan[
-                            3].cost
-                        + branch_w[2] * plan[6].cost
+                        dynamic_mode_weights = _get_joint_mode_weights(
+                            mode_belief=belief,
+                            mode_selections=joint_mode_selections,
+                        )
+
+                        plan['cost'] = plan['shared_plan'].cost
+                        for mode_num, mode_weight in enumerate(dynamic_mode_weights):
+                            if mode_num in plan:
+                                plan['cost'] += mode_weight * plan[mode_num].cost
 
                 # sort the final plan
                 # 最终按总代价排序,ft_final_list[0] 就是全计划最优
@@ -773,28 +854,28 @@ class FrenetPlanner(Planner):
         with self.exec_timer.time_with_cm("plot trajectories"):
             # if self.ego_state.time_step == 0 or self.open_loop == False:
             # 生成 harm/risk 图(需要 risk 模式)
-            if self.params_mode["figures"]["create_figures"] is True:
-                if self.mode == "risk":
-                    create_risk_files(
-                        scenario=self.scenario,
-                        time_step=self.ego_state.time_step,
-                        destination=os.path.join(os.path.dirname(__file__), "results"),
-                        risk_modes=self.params_mode,
-                        weights=self.params_weights,
-                        marked_vehicle=self.ego_id,
-                        planning_problem=self.planning_problem,
-                        traj=ft_list_valid,
-                        global_path=self.global_path_to_goal,
-                        global_path_after_goal=self.global_path_after_goal,
-                        driven_traj=self.driven_traj,
-                    )
+            # if self.params_mode["figures"]["create_figures"] is True:
+            #     if self.mode == "risk":
+            #         create_risk_files(
+            #             scenario=self.scenario,
+            #             time_step=self.ego_state.time_step,
+            #             destination=os.path.join(os.path.dirname(__file__), "results"),
+            #             risk_modes=self.params_mode,
+            #             weights=self.params_weights,
+            #             marked_vehicle=self.ego_id,
+            #             planning_problem=self.planning_problem,
+            #             traj=ft_list_valid,
+            #             global_path=self.global_path_to_goal,
+            #             global_path_after_goal=self.global_path_after_goal,
+            #             driven_traj=self.driven_traj,
+            #         )
 
-                else:
-                    warnings.warn(
-                        "Harm diagrams could not be created."
-                        "Please select mode risk.",
-                        UserWarning,
-                    )
+            #     else:
+            #         warnings.warn(
+            #             "Harm diagrams could not be created."
+            #             "Please select mode risk.",
+            #             UserWarning,
+            #         )
             # 风险仪表盘
             if self.params_mode["risk_dashboard"] is True:
                 if self.mode == "risk":
@@ -816,16 +897,16 @@ class FrenetPlanner(Planner):
                         "Please select mode risk.",
                         UserWarning,
                     )
-
+            print(
+                "Time step: {} | Velocity: {:.2f} m/s | Acceleration: {:.2f} m/s2".format(
+                    self.time_step, current_v, c_s_dd
+                )
+            )
             # print some information about the frenet trajectories
             # 终端打印与本地绘图开关
+            # breakpoint()
             if self.plot_frenet_trajectories:
-                matplotlib.use("TKAgg")
-                print(
-                    "Time step: {} | Velocity: {:.2f} m/s | Acceleration: {:.2f} m/s2".format(
-                        self.time_step, current_v, c_s_dd
-                    )
-                )
+                matplotlib.use("TkAgg")
                 '''
                 Highway_env_branch.plot_scenario(self.mpc, self.N_lane, self.time_step, self.ego_state,
                                                  self.obst_new_state, ft_final_list[0],
@@ -835,7 +916,7 @@ class FrenetPlanner(Planner):
                 self.traj_rec.append(ft_final_list[0])
                 self.state_rec.append(state_rec)
                 self.zPred_rec.append(zPred)
-                self.branch_w_rec.append(branch_w)
+                self.branch_w_rec.append(belief)
                 
                 # 在 time_step==100 时画整个回放
                 # if self.time_step == 100:
@@ -843,60 +924,61 @@ class FrenetPlanner(Planner):
                 #                                      self.obst_new_state, self.traj_rec,
                 #                                      self.state_rec, self.zPred_rec)
 
-            try:
-                '''
-                draw_all_contingent_trajectories(
-                    scenario=self.scenario,
-                    time_step=self.ego_state.time_step,
-                    marked_vehicle=self.ego_id,
-                    planning_problem=self.planning_problem,
-                    traj=None,
-                    global_path=self.global_path_to_goal,
-                    global_path_after_goal=self.global_path_after_goal,
-                    driven_traj=self.driven_traj,
-                    animation_area=50.0,
-                    predictions=predictions,
-                    visible_area=visible_area,
-                    valid_traj=ft_final_list,
-                    best_traj=self.contingency_trajectory,
-                    open_loop=self.open_loop,
-                )
-                '''
-                # 绘制所有计划(shared+contingent)与最优选择
-                draw_all_plans(
-                    scenario=self.scenario,
-                    time_step=self.ego_state.time_step,
-                    marked_vehicle=self.ego_id,
-                    planning_problem=self.planning_problem,
-                    traj=None,
-                    global_path=self.global_path,
-                    global_path_after_goal=self.global_path_after_goal,
-                    driven_traj=self.driven_traj,
-                    animation_area=50.0,
-                    predictions=predictions,
-                    visible_area=visible_area,
-                    valid_traj=ft_all_plans_list,  # 所有候选(按 shared 分组)
-                    best_traj=ft_final_list,       # 最终计划列表(按总代价排序)
-                    open_loop=self.open_loop,
-                )
+                try:
+                    '''
+                    draw_all_contingent_trajectories(
+                        scenario=self.scenario,
+                        time_step=self.ego_state.time_step,
+                        marked_vehicle=self.ego_id,
+                        planning_problem=self.planning_problem,
+                        traj=None,
+                        global_path=self.global_path_to_goal,
+                        global_path_after_goal=self.global_path_after_goal,
+                        driven_traj=self.driven_traj,
+                        animation_area=50.0,
+                        predictions=predictions,
+                        visible_area=visible_area,
+                        valid_traj=ft_final_list,
+                        best_traj=self.contingency_trajectory,
+                        open_loop=self.open_loop,
+                    )
+                    '''
+                    # 绘制所有计划(shared+contingent)与最优选择
+                    draw_all_plans(
+                        scenario=self.scenario,
+                        time_step=self.ego_state.time_step,
+                        marked_vehicle=self.ego_id,
+                        planning_problem=self.planning_problem,
+                        traj=None,
+                        global_path=self.global_path,
+                        global_path_after_goal=self.global_path_after_goal,
+                        driven_traj=self.driven_traj,
+                        animation_area=50.0,
+                        predictions=predictions,
+                        visible_area=visible_area,
+                        valid_traj=ft_all_plans_list,  # 所有候选(按 shared 分组)
+                        best_traj=ft_final_list,
+                        open_loop=self.open_loop,
+                    )
 
-            except Exception as e:
-                print(e)
+                except Exception as e:
+                    print(e)
             # 初始时刻保存 contingency_trajectory(用于 open loop 可能复用)
-            if self.ego_state.time_step == 0:
-                self.contingency_trajectory = ft_final_list  # 第一次迭代记录全套计划,供可视化或调试
+            # if self.ego_state.time_step == 0:
+            #     self.contingency_trajectory = ft_final_list  # 第一次迭代记录全套计划,供可视化或调试
 
             # best trajectory
             # 选择 best trajectory(用于更新 self._trajectory)
             # NOTE: 这里 best_trajectory 取的是 ft_list_valid[0],而不是 ft_final_list[0]['shared_plan']
             #      也就是说:你最终输出的“控制轨迹”是 shared 轨迹的最优,而不是“加权后最优计划”的 shared 部分
             #      如果你想执行的是“最优全计划”的 shared 段,应改为 ft_final_list[0]['shared_plan']
-            if len(ft_list_valid) > 0:
+            if len(ft_final_list) > 0:
                 best_trajectory = ft_final_list[0]
             elif len(ft_list_invalid) > 0:
-                best_trajectory = ft_list_invalid[0]  # 若全不可行,仍返回成本最低者,供上层降级处理
+                best_trajectory = {'shared_plan': ft_list_invalid[0], 'cost': ft_list_invalid[0].cost}
                 # raise NoLocalTrajectoryFoundError('Failed. No valid frenét path found')
-            # else: 如果两者都空,需要抛错或 fallback
+            else:
+                raise RuntimeError("No Frenet plan available for current step")
 
         self.exec_timer.stop_timer("simulation/total")
 
@@ -920,7 +1002,7 @@ class FrenetPlanner(Planner):
             "time_s": best_trajectory['shared_plan'].t,
         }
         # 返回最佳计划、仿真状态记录、预测轨迹以及障碍更新信息,供上层决策使用
-        return ft_final_list[0], state_rec, zPred, self.obst_new_state
+        return best_trajectory, state_rec, zPred, self.obst_new_state
 
 
 if __name__ == "__main__":
@@ -945,11 +1027,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     # 创建参数解析器
-    parser.add_argument("--scenario", default="recorded/hand-crafted/DEU_Muc-4_2_T-1"
+    parser.add_argument("--scenario", default="recorded/hand-crafted/BRA_VilaVelha-92_1_T-10"
                                               ".xml")
     # --scenario:指定要评测的场景路径
     # 默认值被拆成两段字符串拼接(Python 会自动连接相邻字符串常量)
-    parser.add_argument("--time", action="store_true")  # 若传入 --time,则启用 cProfile 输出性能
+    parser.add_argument("--time", action="store_true", default=False)  # 若传入 --time,则启用 cProfile 输出性能
     # --time:布尔开关参数
     # - 不传入时 args.time == False
     # - 传入 --time 时 args.time == True,用于启用 cProfile 性能分析并输出报告

@@ -3,6 +3,7 @@ import osqp
 import argparse
 import datetime
 import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from matplotlib import pyplot as plt
 import matplotlib.patches as patches

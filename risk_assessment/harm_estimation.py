@@ -198,6 +198,14 @@ def harm_model(
     return ego_vehicle.harm, obstacle.harm, ego_vehicle, obstacle
 
 
+def _resolve_obstacle_mode(mode_num, obstacle_id, mode_count):
+    if mode_num == 100:
+        return None
+    if isinstance(mode_num, dict):
+        return min(mode_num.get(obstacle_id, 0), mode_count - 1)
+    return min(mode_num, mode_count - 1)
+
+
 def get_harm(scenario, traj, predictions, ego_id, vehicle_params, modes, coeffs, timer, start_idx, mode_num):
     """Get harm.
 
@@ -229,10 +237,15 @@ def get_harm(scenario, traj, predictions, ego_id, vehicle_params, modes, coeffs,
     for obstacle_id in obstacle_ids:
         ego_harm_obst_list = []
         obst_harm_obst_list = []
+        selected_mode = _resolve_obstacle_mode(
+            mode_num=mode_num,
+            obstacle_id=obstacle_id,
+            mode_count=len(predictions[obstacle_id]['pos_list']),
+        )
         # iterate over the modes per obstacle
         for mode in range(len(predictions[obstacle_id]['pos_list'])):
-            if mode_num != 100:
-                mode = mode_num
+            if selected_mode is not None:
+                mode = selected_mode
             # choose which model should be used to calculate the harm
             ego_harm_fun, obstacle_harm_fun = get_model(modes, obstacle_id, scenario)
             # only calculate the risk as long as both obstacles are in the scenario
@@ -346,7 +359,7 @@ def get_harm(scenario, traj, predictions, ego_id, vehicle_params, modes, coeffs,
             ego_harm_obst_list.append(ego_harm_obst)
             obst_harm_obst_list.append(obst_harm_obst)
 
-            if mode_num != 100:
+            if selected_mode is not None:
                 break
 
         ego_harm_traj[obstacle_id] = ego_harm_obst_list

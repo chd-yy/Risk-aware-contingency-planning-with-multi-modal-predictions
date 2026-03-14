@@ -188,7 +188,7 @@ def check_validity(
         # 4) 构造碰撞对象
         # ----------------------------
         # 将 Frenet 轨迹转成 CommonRoad 可以处理的碰撞轨迹对象
-        collision_object = create_collision_object(ft, vehicle_params, ego_state)
+        # collision_object = create_collision_object(ft, vehicle_params, ego_state)
 
         # ----------------------------
         # 5) 与障碍物做碰撞检查

@@ -6,6 +6,8 @@ import pprint
 from pathlib import Path
 
 from commonroad.common.file_reader import CommonRoadFileReader
+import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.widgets import CheckButtons

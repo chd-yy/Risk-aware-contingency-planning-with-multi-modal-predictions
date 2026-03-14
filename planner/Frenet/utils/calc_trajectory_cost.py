@@ -27,6 +27,9 @@ from planner.Frenet.utils.calc_occlusion_costs import get_visible_area
 from risk_assessment.risk_costs import get_bayesian_costs, get_ego_costs, get_equality_costs, get_maximin_costs, get_responsibility_cost
 
 # Global variables
+# 风险相关的代价项 key
+# 这些 key 会在后面用于判断：当轨迹有效性不足(validity_level < 10)且启用了 multiple_cost_functions 时，
+# 是否只保留风险相关代价项的权重，而将其它舒适性/效率类代价权重置零。
 RISK_COSTS_KEY = ["bayes", "equality", "maximin", "responsibility", "ego", "risk_cost"]
 
 
@@ -74,18 +77,30 @@ def calc_trajectory_costs(
         dict: Dictionary with ego harms for every timestep concerning every obstacle
         dict: Dictionary with obstacle harms for every timestep concerning every obstacle
     """
+    # 如果外部没有传入计时器，则新建一个默认不启用 timing 的计时器；
+    # 否则直接复用外部传入的 exec_timer。
     timer = ExecTimer(timing_enabled=False) if exec_timer is None else exec_timer
 
+    # 启动“总代价计算”这一大模块的计时
     timer.start_timer("simulation/sort trajectories/calculate costs/total")
 
-    # read jsons
+    # 从参数字典中读取：
+    # 1. 各类代价项对应的权重 weights
+    # 2. 模式相关配置 modes
     weights = params['weights']
     modes = params['modes']
 
+    # =========================
+    # 1. 计算 cost factor
+    # =========================
+    # factor 是一个额外乘数，不是某个单独代价项，而是对最终总代价进行缩放。
+    # 例如：
+    # - 某条轨迹更接近满足目标/时序要求，可能得到奖励（factor 更小）
+    # - 某条轨迹偏离约束或不合理，可能得到惩罚（factor 更大）
     with timer.time_with_cm(
         "simulation/sort trajectories/calculate costs/get cost factor/total"
     ):
-        # get the cost factor
+        # 获取代价缩放因子
         # the final costs are multiplied with this factor
         # it rewards certain trajectories (e. g. reaches goal in time) and penalises others (e. g. trajectory leaves goal area)
         factor = get_cost_factor(
@@ -96,25 +111,44 @@ def calc_trajectory_costs(
             exec_timer=timer,
         )
 
+    # =========================
+    # 2. 计算风险相关代价
+    # =========================
     with timer.time_with_cm(
         "simulation/sort trajectories/calculate costs/calculate risk/total"
     ):
+        # 只有当 risk_cost 权重大于 0 且存在 predictions 时，才计算风险代价
+        # 否则直接将风险字典置空。
         if weights["risk_cost"] > 0.0 and predictions is not None:
 
+            # 计算 Bayesian 风险代价
+            # 输入包括：
+            # - ego_risk_max: 自车对各障碍物的最大风险
+            # - obst_risk_max: 障碍物对自车的最大风险
+            # - boundary_harm: 边界碰撞/越界相关伤害
             bayes_cost = get_bayesian_costs(
                 ego_risk_max=traj.ego_risk_dict, obst_risk_max=traj.obst_risk_dict, boundary_harm=traj.bd_harm
             )
 
+            # 计算 equality 风险代价
+            # 通常表示风险分配的“平等性”或“公平性”度量
             equality_cost = get_equality_costs(
                 ego_risk_max=traj.ego_risk_dict, obst_risk_max=traj.obst_risk_dict
             )
+
+            # 计算 maximin 风险代价
+            # 一般体现“最差情况”的风险最优化思想
             maximin_cost = get_maximin_costs(
                 ego_risk_max=traj.ego_risk_dict, obst_risk_max=traj.obst_risk_dict,
                 ego_harm_max=traj.ego_harm_dict, obst_harm_max=traj.obst_harm_dict, boundary_harm=traj.bd_harm
             )
 
+            # 计算 ego 风险代价
+            # 主要关注自车自身风险与边界伤害
             ego_cost = get_ego_costs(ego_risk_max=traj.ego_risk_dict, boundary_harm=traj.bd_harm)
 
+            # 计算 responsibility 风险代价
+            # 同时返回 bool_contain_cache，后面会再次用于责任修正
             responsibility_cost, bool_contain_cache = get_responsibility_cost(
                 scenario=scenario,
                 traj=traj,
@@ -124,7 +158,9 @@ def calc_trajectory_costs(
                 reach_set=reach_set
             )
 
-            # calculate risk cost
+            # 将所有风险代价加权求和，形成总风险代价
+            # 这里要注意：responsibility 项又额外乘了 weights["bayes"]
+            # 说明责任风险与 bayes 风险在当前设计中存在耦合。
             total_risk_cost = (
                 weights["bayes"] * bayes_cost
                 + weights["equality"] * equality_cost
@@ -133,7 +169,8 @@ def calc_trajectory_costs(
                 + weights["ego"] * ego_cost
             )
 
-            # fill risk dict
+            # 将各风险代价值存入 traj.risk_dict
+            # 后续可用于可视化、debug、dashboard 显示等
             traj.risk_dict = {
                 "bayes": bayes_cost,
                 "equality": equality_cost,
@@ -143,67 +180,101 @@ def calc_trajectory_costs(
                 "total": total_risk_cost,
             }
 
+            # 将“总风险代价”作为一个总代价项写入 cost_dict
+            # 注意：这里 cost_dict 里存的是 risk_cost，
+            # 具体分项 bayes/equality/maximin 等保存在 traj.risk_dict 中
             cost_dict = {"risk_cost": traj.risk_dict["total"]}
 
         else:
+            # 若不满足风险代价计算条件，则风险字典和代价字典都置空
             traj.risk_dict = {}
             cost_dict = {}
 
+    # =========================
+    # 3. 责任风险修正
+    # =========================
     with timer.time_with_cm(
         "simulation/sort trajectories/calculate costs/calculate responsibility/total"
     ):
+        # 只有 responsibility 权重大于 0 时，才做进一步责任修正
         if weights["responsibility"] > 0.0:
+            # 如果缓存 bool_contain_cache 存在，优先使用缓存结果
             if bool_contain_cache is not None:
+                # 取出当前 ego_state.time_step 下所有 reach set 的对象 id 列表
                 key_list = list(reach_set.reach_sets[ego_state.time_step].keys())
                 for i in range(len(key_list)):
+                    # 如果 bool_contain_cache[i] 中不存在 1，
+                    # 表示当前对象对应可达域未“包含”自车轨迹点，即自车对该对象不承担责任
                     if 1 not in bool_contain_cache[i]:
                         obj_id = key_list[i]
+                        # 从 responsibility 和 total 中减去该障碍物风险
                         traj.risk_dict["responsibility"] -= traj.obst_risk_dict[obj_id]
                         traj.risk_dict["total"] -= traj.obst_risk_dict[obj_id]
 
             else:
+                # 如果没有缓存，则直接遍历 reach set 进行逐对象、逐时刻判断
                 responsibility_cost = 0.0
                 for obj_id, rs in reach_set.reach_sets[ego_state.time_step].items():
+                    # 默认认为自车对该对象“有责任”
                     # time_steps = [float(list(entry.keys())[0]) for entry in rs]
                     responsibility = True
                     for part_set in rs:
+                        # part_set 的 key 是时间，value 是对应时刻的可达域多边形点集
                         time_t = list(part_set.keys())[0]
+                        # 根据连续时间 time_t 映射回离散轨迹索引
                         time_step = int(time_t / dt - 1)
 
+                        # 自车在该离散时刻的位置
                         ego_pos = Point(traj.x[time_step], traj.y[time_step])
+                        # 构造该障碍物在对应时刻的可达域多边形
                         obj_rs = Polygon(list(part_set.values())[0])
 
+                        # 如果自车轨迹点落在障碍物可达域内，则认为该对象与自车存在责任关联
                         if obj_rs.contains(ego_pos):
                             responsibility = False
                             break
 
+                    # 若整段检查后 responsibility 仍为 True，
+                    # 则从责任项和总风险项中扣除该障碍物风险
                     if responsibility:
                         traj.risk_dict["responsibility"] -= traj.obst_risk_dict[obj_id]
                         traj.risk_dict["total"] -= traj.obst_risk_dict[obj_id]
 
+    # =========================
+    # 4. 计算可见区域 / 遮挡相关代价
+    # =========================
     with timer.time_with_cm(
         "simulation/sort trajectories/calculate costs/calculate visible area"
     ):
+        # 只有 visible_area 权重大于 0 时才进入该部分
         if weights["visible_area"] > 0.0:
 
             try:
-                # get visible and desired visible area
+                # 获取当前时刻的可见区域 visible_area
+                # 以及期望可见区域 desired_visible_area
                 visible_area, desired_visible_area = get_visible_area(
                     scenario,
                     ego_pos=ego_state.position,
                     time_step=ego_state.time_step,
                     sensor_radius=int(sensor_radius),
                 )
-                # get all points from all trajectories and create convex hull to create danger zones
+
+                # 收集整条轨迹上的所有离散点，并构造其凸包
+                # 用于近似表示该轨迹会经过的整体空间范围
                 traj_hull = MultiPoint(
                     [(traj.x[i], traj.y[i]) for i in range(len(traj.x))]
                 ).convex_hull
 
-                # calculate danger zones and visible and occluded areas therein
+                # 构造多个“危险区”
+                # 越靠近轨迹核心区域，通常越重要
                 danger_zones = [
                     traj_hull.buffer(sensor_radius * 0.2),
                     traj_hull.buffer(sensor_radius * 0.5),
                 ]
+
+                # 计算每个危险区内：
+                # 1. 实际可见区域
+                # 2. 理想应可见区域
                 areas_in_danger_zone = [
                     (
                         visible_area.intersection(dz),
@@ -212,19 +283,24 @@ def calc_trajectory_costs(
                     for dz in danger_zones
                 ]
 
-                # calculate ratios of visibilities (higher value = higher visibility; 0 = all occluded)
+                # 计算可见性比例
+                # 值越大表示可见性越好；接近 0 表示遮挡严重
                 visibility_ratios = [
                     va.area / (dva.area + 0.01) for (va, dva) in areas_in_danger_zone
                 ]
+
+                # 再追加一个全局可见性比例
                 visibility_ratios.append(
                     visible_area.area / (desired_visible_area.area + 0.01)
                 )
             except Exception as e:  # TopologicalError or AttributeError:
-                # if get_visible_area fails, print error and returns initial value (none)
+                # 如果可见区域计算失败，则打印错误
+                # 注意：此处不会中断程序，后续可能继续沿用未定义或旧变量，存在潜在风险
                 print(e)
 
-            # calculate costs for occlusions depending on the occlusion mode
+            # 根据不同的 occlusion_mode 计算遮挡代价
             if modes["occlusion_mode"] == "area":
+                # 基于可见面积比例来计算遮挡代价
                 cost_dict["visible_area"] = calc_occluded_area_vs_velocity(
                     traj=traj,
                     visible_area=visible_area,
@@ -233,12 +309,14 @@ def calc_trajectory_costs(
                     sensor_radius=sensor_radius,
                 )
             elif modes["occlusion_mode"] == "distance":
+                # 基于轨迹到遮挡区域的距离计算代价
                 cost_dict["visible_area"] = calc_distance_to_occlusion(
                     traj=traj,
                     visible_area=visible_area,
                     desired_visible_area=desired_visible_area,
                 )
             elif modes["occlusion_mode"] == "mixed":
+                # 混合模式：面积项和距离项平均融合
                 cost_area = calc_occluded_area_vs_velocity(
                     traj=traj,
                     visible_area=visible_area,
@@ -257,24 +335,35 @@ def calc_trajectory_costs(
                     w1 + w2
                 )
             else:
+                # 若 occlusion_mode 不在已实现模式中，则抛出异常
                 raise NotImplementedError(
                     f"The given mode {modes['occlusion_mode']} is not implemented."
                 )
 
+    # =========================
+    # 5. 计算纵向/横向 jerk 代价
+    # =========================
     with timer.time_with_cm(
         "simulation/sort trajectories/calculate costs/calculate jerk"
     ):
+        # 只要任一 jerk 权重大于 0，就先统一计算纵横向 jerk
         if weights["lon_jerk"] > 0.0 or weights["lat_jerk"] > 0.0:
             lon_jerk, lat_jerk = get_jerk(traj=traj)
             if weights["lon_jerk"] > 0.0:
+                # 纵向 jerk 反映加速度变化剧烈程度，通常与舒适性相关
                 cost_dict["lon_jerk"] = lon_jerk
             if weights["lat_jerk"] > 0.0:
+                # 横向 jerk 通常反映转向平顺性
                 cost_dict["lat_jerk"] = lat_jerk
 
+    # =========================
+    # 6. 计算速度代价
+    # =========================
     with timer.time_with_cm(
         "simulation/sort trajectories/calculate costs/calculate velocity"
     ):
         if weights["velocity"] > 0.0:
+            # 速度代价可能综合考虑期望速度、限速、动态可行性、到达目标等
             cost_dict["velocity"] = velocity_costs(
                 traj=traj,
                 dt=dt,
@@ -282,41 +371,66 @@ def calc_trajectory_costs(
                 planning_problem=planning_problem,
                 scenario=scenario,
             )
+
+    # =========================
+    # 7. 计算到全局路径的平均距离代价
+    # =========================
     with timer.time_with_cm(
         "simulation/sort trajectories/calculate costs/calculate distance to global path"
     ):
         if weights["dist_to_global_path"] > 0.0:
-            #if mode_num != 3:
+            # 原始代码中保留了一句注释：
+            # if mode_num != 3:
+            # 说明这里过去可能有模式分支控制，但当前已被注释掉
             cost_dict["dist_to_global_path"] = calc_avg_dist_to_global_path(traj=traj)
 
+    # =========================
+    # 8. 计算轨迹行驶距离代价
+    # =========================
     with timer.time_with_cm(
         "simulation/sort trajectories/calculate costs/calculate travelled distance"
     ):
         if weights["travelled_dist"] > 0.0:
+            # 轨迹实际行驶长度
             cost_dict["travelled_dist"] = calc_travelled_dist(traj=traj)
 
+    # =========================
+    # 9. 计算到目标位置的距离代价
+    # =========================
     with timer.time_with_cm(
         "simulation/sort trajectories/calculate costs/calculate distance to goal pos"
     ):
         if weights["dist_to_goal_pos"] > 0.0:
+            # 轨迹终点与规划目标区域/位置之间的距离代价
             cost_dict["dist_to_goal_pos"] = calc_dist_to_goal_pos(
                 traj=traj,
                 lanelet_network=scenario.lanelet_network,
                 planning_problem=planning_problem,
             )
 
+    # =========================
+    # 10. 计算到车道中心线的距离代价
+    # =========================
     with timer.time_with_cm(
         "simulation/sort trajectories/calculate costs/calculate distance to lane center"
     ):
         if weights["dist_to_lane_center"] > 0.0:
+            # 轨迹偏离所在车道中心的程度，常用于鼓励沿车道中心平稳行驶
             cost_dict["dist_to_lane_center"] = calc_dist_to_center_line(
                 traj=traj, lanelet_network=scenario.lanelet_network
             )
 
+    # =========================
+    # 11. 权重处理 + 最终代价加权求和
+    # =========================
     with timer.time_with_cm(
         "simulation/sort trajectories/calculate costs/multiply weights and costs"
     ):
         curr_weights = {}
+
+        # 若轨迹有效性低于 10 且启用了 multiple_cost_functions，
+        # 则只保留风险相关项的权重，其他项权重设为 0。
+        # 这通常意味着：对于低有效性轨迹，仅从风险角度进行评价，而不再考虑舒适性、效率等指标。
         if validity_level < 10 and modes["multiple_cost_functions"]:
             for key in weights:
                 if key in RISK_COSTS_KEY:
@@ -324,13 +438,21 @@ def calc_trajectory_costs(
                 else:
                     curr_weights[key] = 0
         else:
+            # 否则直接使用原始权重
             curr_weights = weights
 
-        # multiply the weight with the cost
+        # 按照当前权重对已有代价项进行加权求和
         cost = 0.0
         for key in list(cost_dict.keys()):
             cost += curr_weights[key] * cost_dict[key]
 
+    # 将代价相关信息打包输出
+    # 包括：
+    # - risk_cost_dict: 风险分项
+    # - weights: 实际参与本次加权的权重
+    # - factor: 最终总代价缩放因子
+    # - unweighted_cost: 未乘权重的各分代价
+    # - total_cost: factor * cost
     output_dict = {
         'risk_cost_dict': traj.risk_dict,
         'weights': curr_weights,
@@ -339,10 +461,19 @@ def calc_trajectory_costs(
         'total_cost': factor * cost,
     }
 
+    # 停止总代价计算计时
     timer.stop_timer("simulation/sort trajectories/calculate costs/total")
 
+    # 返回：
+    # 1. cost：当前已加权但尚未乘 factor 的总代价
+    # 2. output_dict：包含详细分项信息的字典
+    #
+    # 注意这里返回的是 cost，而不是 factor * cost
+    # 虽然 output_dict["total_cost"] 中保存的是 factor * cost
+    # 下方被注释掉的旧代码说明这里曾考虑直接返回 factor * cost
     # return factor * cost, output_dict
     return cost, output_dict
+
 
 
 def get_cost_factor(

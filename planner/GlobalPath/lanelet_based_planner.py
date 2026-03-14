@@ -15,6 +15,8 @@ import math
 from typing import List
 
 # Third Party imports
+import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import numpy as np
 

@@ -294,15 +294,41 @@ def get_number_of_lines(file_path_in: str):
 
 
 def log_param_dict(param_dict, logger):
-    """Log parameter dict.
-
-    Args:
-        param_dict ([dict]): parameter dict
-        logger ([FrenetLogging object]): object from FrenetLogging class
     """
+    将参数字典中的内容按结构格式打印到日志中。
+
+    参数:
+        param_dict (dict):
+            参数字典，通常为二级结构，例如：
+            {
+                "section1": {"param1": value1, "param2": value2},
+                "section2": {"param3": value3}
+            }
+
+        logger (FrenetLogging object):
+            日志对象，通常是 FrenetLogging 类的实例，
+            用于记录日志信息（例如 info、warning、error 等级别）。
+    """
+
+    # 打印一条分隔线，方便在日志中区分不同模块的参数
     logger.info("=" * 40)
+
+    # 遍历参数字典
+    # sec 表示参数分组名称（section）
+    # dic 表示该分组下的参数字典
     for sec, dic in param_dict.items():
+
+        # 记录当前参数分组名称
         logger.info(sec)
+
+        # 遍历该分组中的所有参数
+        # key 表示参数名
+        # val 表示参数值
         for key, val in dic.items():
+
+            # 以统一格式记录参数
+            # 例如:  - learning_rate: 0.001
             logger.info(" - {}: {}".format(key, val))
+
+    # 再打印一条分隔线，表示参数输出结束
     logger.info("=" * 40)
