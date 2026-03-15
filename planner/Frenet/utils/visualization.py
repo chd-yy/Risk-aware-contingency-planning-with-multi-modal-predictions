@@ -648,6 +648,7 @@ def draw_all_plans(
         planning_problem=None,
         traj=None,
         predictions: dict = None,
+        base_predictions: dict = None,
         visible_area=None,
         animation_area: float = 40.0,
         global_path: np.ndarray = None,
@@ -679,6 +680,13 @@ def draw_all_plans(
             ax,
             picker,
             show_label,
+        )
+
+    if base_predictions is not None:
+        draw_base_predictions(
+            base_predictions=base_predictions,
+            ax=ax,
+            picker=picker,
         )
 
     # Draw all possible trajectories with their costs as colors
@@ -717,7 +725,7 @@ def draw_all_plans(
     # 先把所有 shared_plan 用淡黑色画出来
     # j = 0
     for p in reversed(valid_traj):
-        ax.plot(p['shared_plan'].x, p['shared_plan'].y, alpha=0.5, color='k', zorder=25, picker=picker)
+        ax.plot(p['shared_plan'].x, p['shared_plan'].y, alpha=0.1, color='k', zorder=25, picker=picker)
         # j = j + 1
         # print(f"Loop count: {j}") 
 
@@ -742,7 +750,7 @@ def draw_all_plans(
             ax.plot(
                 valid_traj[i][key].x,
                 valid_traj[i][key].y,
-                alpha=0.2,
+                alpha=0.05,
                 color=colorset[j],
                 zorder=25,
                 label="Best trajectory",
@@ -773,28 +781,79 @@ def draw_all_plans(
 
     # draw predictions
     prediction_plot_list = list(predictions.values())[:10]
-    fut_pos_list = [
-        prediction_plot_list[i]["pos_list"][:20][:]
-        for i in range(len(prediction_plot_list))
-    ]
 
-    for i in range(len(fut_pos_list[0])):
-        ax.plot(fut_pos_list[0][i][:, 0], fut_pos_list[0][i][:, 1], alpha=0.5,
+    for pred in prediction_plot_list:
+        pos_list = pred["pos_list"][:20]
+
+        if isinstance(pos_list, np.ndarray):
+            pos_list = [pos_list]
+
+        for traj_xy in pos_list:
+            ax.plot(
+                traj_xy[:, 0],
+                traj_xy[:, 1],
+                alpha=0.5,
                 color='tab:gray',
                 lw=0.5,
                 zorder=25,
                 marker='o',
                 markersize=2,
-                picker=picker, )
+                picker=picker,
+            )
 
-    '''
+
     if predictions is not None:
+        # breakpoint()
+        # for prediction in predictions:
         draw_uncertain_predictions(predictions, ax)
-    '''
+
     # show the figure until the next one ins ready
     # plt.savefig(str(i).zfill(4) + ".png")
     # i += 1
     plt.pause(0.000001)
+
+
+def draw_base_predictions(
+        base_predictions: dict,
+        ax,
+        picker=False,
+):
+    """
+    Draw all single-modal base prediction trajectories.
+    """
+    if base_predictions is None or ax is None:
+        return
+
+    for pred in list(base_predictions.values()):
+        pos_list = pred.get("pos_list")
+        if pos_list is None:
+            continue
+
+        if isinstance(pos_list, np.ndarray):
+            traj_list = [pos_list]
+        elif isinstance(pos_list, list) and len(pos_list) > 0 and isinstance(pos_list[0], np.ndarray):
+            traj_list = pos_list
+        else:
+            traj_array = np.asarray(pos_list, dtype=float)
+            if traj_array.ndim != 2 or traj_array.shape[1] != 2:
+                continue
+            traj_list = [traj_array]
+
+        for traj_xy in traj_list:
+            if traj_xy.ndim != 2 or traj_xy.shape[1] != 2:
+                continue
+            ax.plot(
+                traj_xy[:, 0],
+                traj_xy[:, 1],
+                alpha=0.9,
+                color="tab:green",
+                lw=1.2,
+                linestyle="--",
+                zorder=24,
+                marker="x",
+                markersize=3,
+                picker=picker,
+            )
 
 
 def draw_all_contingent_trajectories(
@@ -1116,7 +1175,7 @@ def draw_frenet_trajectories(
     # i += 1
     plt.pause(0.000001)
 
-
+#TODO(yanjun)
 def show_frenet_details(vehicle_params, fp_list, global_path: np.ndarray = None):
     """
     Plot details about the frenét trajectories.
@@ -1318,20 +1377,20 @@ def draw_scenario(
         draw_object(planning_problem, ax=ax)
 
     # 高亮 ego vehicle
-    # if marked_vehicle is not None:
-    #     draw_object(
-    #         # obj=scenario.obstacle_by_id(marked_vehicle),
-    #         obj=scenario.dynamic_obstacles,
-    #         draw_params={
-    #             "time_begin": time_step,
-    #             "facecolor": "g",
-    #             "dynamic_obstacle": {
-    #                 "draw_shape": False,
-    #                 "draw_bounding_box": False,
-    #                 "draw_icon": True,
-    #             },
-    #         },
-    #     )
+    if marked_vehicle is not None:
+        draw_object(
+            # obj=scenario.obstacle_by_id(marked_vehicle),
+            obj=scenario.dynamic_obstacles,
+            draw_params={
+                "time_begin": time_step,
+                "facecolor": "g",
+                "dynamic_obstacle": {
+                    "draw_shape": False,
+                    "draw_bounding_box": False,
+                    "draw_icon": True,
+                },
+            },
+        )
 
     # 画全局路径
     if global_path is not None:

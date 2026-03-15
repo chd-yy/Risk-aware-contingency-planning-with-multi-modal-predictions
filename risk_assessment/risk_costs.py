@@ -185,6 +185,7 @@ def calc_risk(
 
             但当前代码把 harm 注释掉了
             '''
+            # TODO(yanjun)
             # 当前实现：风险 = 碰撞概率
             ego_risk_traj_list[mode] = [
                 coll_prob_dict[key][mode][t]

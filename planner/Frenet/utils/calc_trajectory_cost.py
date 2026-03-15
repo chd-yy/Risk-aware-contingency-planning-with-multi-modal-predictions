@@ -149,14 +149,14 @@ def calc_trajectory_costs(
 
             # 计算 responsibility 风险代价
             # 同时返回 bool_contain_cache，后面会再次用于责任修正
-            responsibility_cost, bool_contain_cache = get_responsibility_cost(
-                scenario=scenario,
-                traj=traj,
-                ego_state=ego_state,
-                obst_risk_max=traj.obst_risk_dict,
-                predictions=predictions,
-                reach_set=reach_set
-            )
+            # responsibility_cost, bool_contain_cache = get_responsibility_cost(
+            #     scenario=scenario,
+            #     traj=traj,
+            #     ego_state=ego_state,
+            #     obst_risk_max=traj.obst_risk_dict,
+            #     predictions=predictions,
+            #     reach_set=reach_set
+            # )
 
             # 将所有风险代价加权求和，形成总风险代价
             # 这里要注意：responsibility 项又额外乘了 weights["bayes"]
@@ -165,7 +165,7 @@ def calc_trajectory_costs(
                 weights["bayes"] * bayes_cost
                 + weights["equality"] * equality_cost
                 + weights["maximin"] * maximin_cost
-                + weights["responsibility"] * weights["bayes"] * responsibility_cost
+                # + weights["responsibility"] * weights["bayes"] * responsibility_cost
                 + weights["ego"] * ego_cost
             )
 
@@ -175,7 +175,7 @@ def calc_trajectory_costs(
                 "bayes": bayes_cost,
                 "equality": equality_cost,
                 "maximin": maximin_cost,
-                "responsibility": responsibility_cost,
+                # "responsibility": responsibility_cost,
                 "ego": ego_cost,
                 "total": total_risk_cost,
             }
@@ -430,6 +430,7 @@ def calc_trajectory_costs(
 
         # 若轨迹有效性低于 10 且启用了 multiple_cost_functions，
         # 则只保留风险相关项的权重，其他项权重设为 0。
+        # TODO(yanjun)
         # 这通常意味着：对于低有效性轨迹，仅从风险角度进行评价，而不再考虑舒适性、效率等指标。
         if validity_level < 10 and modes["multiple_cost_functions"]:
             for key in weights:
