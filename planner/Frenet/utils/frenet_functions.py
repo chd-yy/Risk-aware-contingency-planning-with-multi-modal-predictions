@@ -44,7 +44,11 @@ sys.path.append(module_path)
 # 纵向 quartic / 横向 quintic 多项式工具
 from planner.Frenet.utils.polynomials import quartic_polynomial, quintic_polynomial
 # 轨迹有效性检查(碰撞、动力学约束、道路边界等)
-from planner.Frenet.utils.validity_checks import VALIDITY_LEVELS, check_validity
+from planner.Frenet.utils.validity_checks import (
+    VALIDITY_LEVELS,
+    check_risk_validity,
+    check_validity_basic,
+)
 # 代价函数 + 距离计算
 from planner.Frenet.utils.calc_trajectory_cost import (
     calc_trajectory_costs,
@@ -1066,15 +1070,31 @@ def sort_frenet_trajectories(
     else:
         cost_predictions = predictions
 
-    # ========== 1) 风险计算（若有 predictions） ==========
-    # NOTE: 风险计算通常很耗时，你这里对每条轨迹都算一次，可能是主要瓶颈
+    # ========== 1) 基础 validity 检查 ==========
+    ft_list_basic_validity = []
+    for fp in fp_list:
+        with timer.time_with_cm("simulation/sort trajectories/check validity/total"):
+            fp.valid_level, fp.reason_invalid = check_validity_basic(
+                ft=fp,
+                vehicle_params=vehicle_params,
+                exec_timer=timer,
+            )
+        if fp.valid_level == 10:
+            ft_list_basic_validity.append(fp)
+        # else:
+        #     validity_dict[fp.valid_level].append(fp)
+
+    if len(ft_list_basic_validity) == 0:
+        # ft_list_invalid = [
+        #     validity_dict[inv] for inv in VALIDITY_LEVELS if inv < 10
+        # ]
+        # ft_list_invalid = [item for sublist in ft_list_invalid for item in sublist]
+        # return [], ft_list_invalid
+        return []
+
+    # ========== 2) 风险计算（仅对基础有效轨迹） ==========
     if predictions is not None:
-        # risk_loop_total = len(fp_list)
-        # print(f"[risk] for fp in fp_list 总循环次数: {risk_loop_total}")
-        # for risk_loop_count, fp in enumerate(fp_list, start=1):
-        for fp in fp_list:
-            # print(f"[risk] 已循环: {risk_loop_count}/{risk_loop_total}")
-            # calc_risk 返回多个结构：ego_risk_dict/obst_risk_dict/ego_harm_dict/obst_harm_dict/bd_harm
+        for fp in ft_list_basic_validity:
             fp.ego_risk_dict, fp.obst_risk_dict, fp.ego_harm_dict, fp.obst_harm_dict, fp.bd_harm = calc_risk(
                 traj=fp,
                 ego_state=ego_state,
@@ -1088,27 +1108,17 @@ def sort_frenet_trajectories(
                 mode_num=mode_num,
                 belief=belief
             )
-        # print(f"[risk] for fp in fp_list 循环结束，总计: {risk_loop_total}")
-        
-    # ========== 2) validity 检查 ==========
-    for fp in fp_list:
-        with timer.time_with_cm("simulation/sort trajectories/check validity/total"):
-            # check validity
-            fp.valid_level, fp.reason_invalid = check_validity(
-                ft=fp,
-                ego_state=ego_state,
-                scenario=scenario,
-                vehicle_params=vehicle_params,
-                risk_params=params['modes'],  # NOTE: 这里 risk_params 取 params['modes']，要确认结构是否合理
-                predictions=predictions,
-                mode=mode,
-                collision_checker=collision_checker,
-                exec_timer=timer,
-                start_idx=start_idx,
-                mode_num=mode_num,
-            )
 
-            validity_dict[fp.valid_level].append(fp)
+    # ========== 3) 风险相关 validity 检查 ==========
+    for fp in ft_list_basic_validity:
+        with timer.time_with_cm("simulation/sort trajectories/check validity/risk total"):
+            fp.valid_level, fp.reason_invalid = check_risk_validity(
+                ft=fp,
+                risk_params=params['modes'],
+                mode=mode,
+                exec_timer=timer,
+            )
+        validity_dict[fp.valid_level].append(fp)
 
     # 取“存在轨迹的最高有效等级”
     validity_level = max(
@@ -1117,13 +1127,13 @@ def sort_frenet_trajectories(
 
     # 把比最高等级低的全部视为 invalid（并展开）
     ft_list_highest_validity = validity_dict[validity_level]
-    ft_list_invalid = [
-        validity_dict[inv] for inv in VALIDITY_LEVELS if inv < validity_level
-    ]
-    # 把二维 list 拍平成一维 list
-    ft_list_invalid = [item for sublist in ft_list_invalid for item in sublist]
+    # ft_list_invalid = [
+    #     validity_dict[inv] for inv in VALIDITY_LEVELS if inv < validity_level
+    # ]
+    # # 把二维 list 拍平成一维 list
+    # ft_list_invalid = [item for sublist in ft_list_invalid for item in sublist]
 
-    # ========== 3) cost 计算（只对最高有效等级轨迹） ==========
+    # ========== 4) cost 计算（只对最高有效等级轨迹） ==========
     for fp in ft_list_highest_validity:
         (
             fp.cost,
@@ -1147,7 +1157,7 @@ def sort_frenet_trajectories(
             mode_num=mode_num
         )
 
-    return ft_list_highest_validity, ft_list_invalid, validity_dict
+    return ft_list_highest_validity
 
 
 def calc_global_trajectory(

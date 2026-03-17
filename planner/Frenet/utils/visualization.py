@@ -30,6 +30,7 @@ from matplotlib.patches import Polygon
 import sys
 import os
 import pickle
+from pathlib import Path
 
 # Ignore Matplotlib DeprecationWarning
 # 忽略 matplotlib 的弃用警告，避免运行时输出过多 warning
@@ -60,6 +61,65 @@ from prediction.utils.visualization import draw_uncertain_predictions
 
 # 全局计数器（当前代码里几乎没真正用到，只在注释中出现）
 i = 0
+PLOT_SNAPSHOTS = []
+_LAST_SNAPSHOT_ANIMATION = None
+
+
+def capture_plot_snapshot(ax=None):
+    """Capture the current matplotlib canvas as an RGB frame."""
+    fig = ax.figure if ax is not None else plt.gcf()
+    if fig is None or fig.canvas is None:
+        return
+
+    fig.canvas.draw()
+    frame = np.asarray(fig.canvas.buffer_rgba(), dtype=np.uint8)[..., :3].copy()
+    PLOT_SNAPSHOTS.append(frame)
+
+
+def clear_plot_snapshots():
+    """Clear cached plot frames."""
+    PLOT_SNAPSHOTS.clear()
+
+
+def replay_plot_snapshots(fps: int = 8, save_path: str = None, clear_after: bool = False):
+    """Replay captured plot snapshots and optionally save them as a gif."""
+    global _LAST_SNAPSHOT_ANIMATION
+
+    if len(PLOT_SNAPSHOTS) == 0:
+        return None
+
+    interval_ms = max(int(1000 / max(fps, 1)), 1)
+    fig, ax = plt.subplots()
+    ax.set_axis_off()
+    image_artist = ax.imshow(PLOT_SNAPSHOTS[0])
+
+    def _update(frame_idx):
+        image_artist.set_data(PLOT_SNAPSHOTS[frame_idx])
+        return [image_artist]
+
+    _LAST_SNAPSHOT_ANIMATION = animation.FuncAnimation(
+        fig,
+        _update,
+        frames=len(PLOT_SNAPSHOTS),
+        interval=interval_ms,
+        blit=True,
+        repeat=False,
+    )
+
+    if save_path is not None:
+        output_path = Path(save_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        _LAST_SNAPSHOT_ANIMATION.save(
+            str(output_path),
+            writer=animation.PillowWriter(fps=max(fps, 1)),
+        )
+
+    plt.show()
+
+    if clear_after:
+        clear_plot_snapshots()
+
+    return _LAST_SNAPSHOT_ANIMATION
 
 
 def animate_scenario(
@@ -682,15 +742,7 @@ def draw_all_plans(
             show_label,
         )
 
-    if base_predictions is not None:
-        draw_base_predictions(
-            base_predictions=base_predictions,
-            ax=ax,
-            picker=picker,
-        )
-
-    # Draw all possible trajectories with their costs as colors
-    if valid_traj is not None and len(valid_traj) != 0:
+    if best_traj is not None and len(best_traj) != 0:
         # x and y axis description
         ax.set_xlabel("x[m]")
         ax.set_ylabel("y[m]")
@@ -708,60 +760,61 @@ def draw_all_plans(
         ax.set_ylim(
             -37, 24
         )
+        # 第一套 colorset 被第二套覆盖
+        colorset = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray',
+                    'tab:olive', 'tab:cyan', 'y', 'm', 'c', 'g']
 
-    # best trajectory
-    # if len(valid_traj) > 0:
-    #     best_shared_trajectory = valid_traj[0]['shared_plan']
-    # else:
-    #     best_shared_trajectory = best_traj[1]['shared_plan']
+        # 实际使用的是这一套
+        colorset = ['tab:pink', 'tab:blue', 'tab:purple', 'tab:olive', 'm', 'tab:cyan']
 
-    # 第一套 colorset 被第二套覆盖
-    colorset = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray',
-                'tab:olive', 'tab:cyan', 'y', 'm', 'c', 'g']
+        # TODO(yanjun): Draw all possible trajectories with their costs as colors
+        # 先把所有 shared_plan 用淡黑色画出来
+        # j = 0
+        for p in reversed(best_traj):
+            ax.plot(p['shared_plan'].x, p['shared_plan'].y, alpha=0.1, color='k', zorder=25, picker=picker)
+            # j = j + 1
+            # print(f"Loop count: {j}") 
 
-    # 实际使用的是这一套
-    colorset = ['tab:pink', 'tab:blue', 'tab:purple', 'tab:olive', 'm', 'tab:cyan']
+        # 再把每个 plan 里的 contingent trajectories 画出来
+        for i in range(len(best_traj)):
+            keys_list = list(best_traj[i])
+            j = 1
+            for key in keys_list[1:-1]:
+                if abs(best_traj[i][key].d[-1] + 3.6) < 0.1:
+                    j = 0
+                elif abs(best_traj[i][key].d[-1] + 2.88) < 0.1:
+                    j = 1
+                elif abs(best_traj[i][key].d[-1] + 2.16) < 0.1:
+                    j = 2
+                elif abs(best_traj[i][key].d[-1] + 1.44) < 0.1:
+                    j = 3
+                elif abs(best_traj[i][key].d[-1] + 0.72) < 0.1:
+                    j = 4
+                elif abs(best_traj[i][key].d[-1]) < 0.1:
+                    j = 5
 
-    # 先把所有 shared_plan 用淡黑色画出来
-    # j = 0
-    for p in reversed(valid_traj):
-        ax.plot(p['shared_plan'].x, p['shared_plan'].y, alpha=0.1, color='k', zorder=25, picker=picker)
-        # j = j + 1
-        # print(f"Loop count: {j}") 
+                ax.plot(
+                    best_traj[i][key].x,
+                    best_traj[i][key].y,
+                    alpha=0.05,
+                    color=colorset[j],
+                    zorder=25,
+                    label="Best trajectory",
+                    picker=picker,
+                )
+                j += 1
+                if j == len(colorset):
+                    j = 0
 
-    # 再把每个 plan 里的 contingent trajectories 画出来
-    for i in range(len(valid_traj)):
-        keys_list = list(valid_traj[i])
-        j = 1
-        for key in keys_list[1:-1]:
-            if abs(valid_traj[i][key].d[-1] + 3.6) < 0.1:
-                j = 0
-            elif abs(valid_traj[i][key].d[-1] + 2.88) < 0.1:
-                j = 1
-            elif abs(valid_traj[i][key].d[-1] + 2.16) < 0.1:
-                j = 2
-            elif abs(valid_traj[i][key].d[-1] + 1.44) < 0.1:
-                j = 3
-            elif abs(valid_traj[i][key].d[-1] + 0.72) < 0.1:
-                j = 4
-            elif abs(valid_traj[i][key].d[-1]) < 0.1:
-                j = 5
-
-            ax.plot(
-                valid_traj[i][key].x,
-                valid_traj[i][key].y,
-                alpha=0.05,
-                color=colorset[j],
-                zorder=25,
-                label="Best trajectory",
-                picker=picker,
-            )
-            j += 1
-            if j == len(colorset):
-                j = 0
+    if base_predictions is not None:
+        draw_base_predictions(
+            base_predictions=base_predictions,
+            ax=ax,
+            picker=picker,
+        )
 
     # plot best trajectory（最佳计划的 shared 部分）
-    ax.plot(best_traj[0]['shared_plan'].x, best_traj[0]['shared_plan'].y, alpha=1.0, linewidth=3.0, color='tab:blue',
+    ax.plot(best_traj[0]['shared_plan'].x, best_traj[0]['shared_plan'].y, alpha=1.0, linewidth=3.0, color='tab:green',
             zorder=25, picker=picker)
 
     # 再画最佳计划的 contingent 部分
@@ -771,13 +824,13 @@ def draw_all_plans(
             best_traj[0][key].x,
             best_traj[0][key].y,
             alpha=1.0,
-            color=colorset[j % len(colorset)],
-            linewidth=1.5,
+            color='tab:blue',
+            linewidth=2.0,
             zorder=25,
             label="Best trajectory" if idx == 0 else None,
             picker=picker,
         )
-        j += 1
+
 
     # draw predictions
     prediction_plot_list = list(predictions.values())[:10]
@@ -802,14 +855,15 @@ def draw_all_plans(
             )
 
 
-    if predictions is not None:
+    # if predictions is not None:
         # breakpoint()
         # for prediction in predictions:
-        draw_uncertain_predictions(predictions, ax)
+        # draw_uncertain_predictions(predictions, ax)
 
     # show the figure until the next one ins ready
     # plt.savefig(str(i).zfill(4) + ".png")
     # i += 1
+    capture_plot_snapshot(ax=ax)
     plt.pause(0.000001)
 
 

@@ -9,7 +9,7 @@
     "frenet_parameters": {
       "t_list": [1.4],
       "v_list_generation_mode": "linspace",
-      "n_v_samples": 10,
+      "n_v_samples": 7,
       "d_list": {
         "d_max_abs": 1.8,
         "n": 10

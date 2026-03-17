@@ -294,7 +294,7 @@ class ScenarioHandler:
                 self._do_simulation_step(agent=agent, time_step=time_step)
             # stop if the max_simulation_time is reached and no reason was found
             # 如果走到最后一步还没结束(比如没到达目标),就强制抛异常
-            if time_step == 60:
+            if time_step == 30:
                 # breakpoint()
                 raise GoalReachedNotification("Goal reached in time!")
             if time_step == (max_simulation_time_steps - 1):

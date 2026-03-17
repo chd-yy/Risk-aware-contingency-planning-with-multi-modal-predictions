@@ -87,7 +87,8 @@ from beliefplanning.planner.utils.timeout import Timeout
 
 # 可视化工具(绘制 Frenet轨迹、contingent轨迹、计划树等)
 from beliefplanning.planner.Frenet.utils.visualization import draw_frenet_trajectories, \
-    draw_contingent_trajectories, draw_all_contingent_trajectories, draw_all_plans
+    draw_contingent_trajectories, draw_all_contingent_trajectories, draw_all_plans, \
+    clear_plot_snapshots, replay_plot_snapshots
 
 # 预测/可见障碍提取/信念更新等工具
 from beliefplanning.planner.Frenet.utils.prediction_helpers import (
@@ -512,7 +513,7 @@ class FrenetPlanner(Planner):
             # 这相当于只在某一侧车道范围采样(比如只向左变道或只向右回正)
             # 若要更通用,应该用 self.frenet_parameters["d_list"]
             # d_list = self.frenet_parameters["d_list"]
-            d_list = np.linspace(-1.8, 1.8, 10)
+            d_list = np.linspace(-1.75, 1.75, 7)
             t_list = self.frenet_parameters["t_list"]
             # breakpoint()
             # if self.ego_state.time_step == 0 or self.open_loop is False:
@@ -670,7 +671,7 @@ class FrenetPlanner(Planner):
             # belief = [1] * 12
             # 基于碰撞/越界/舒适性指标筛选轨迹,返回按成本排序前的有效/无效集合
             # breakpoint()
-            ft_list_valid, ft_list_invalid, validity_dict = sort_frenet_trajectories(
+            ft_list_valid = sort_frenet_trajectories(
                 ego_state=self.ego_state,
                 fp_list=ft_list,
                 global_path=self.global_path,
@@ -708,7 +709,7 @@ class FrenetPlanner(Planner):
 
                 # NOTE: 同样覆盖 contingency_parameters["d_list"],固定采样 -3.6..0
                 # d_list = self.contingency_parameters["d_list"]
-                d_list = np.linspace(-1.8, 1.8, 6)
+                d_list = np.linspace(-1.75, 1.75, 6)
                 t_list = self.contingency_parameters["t_list"]
 
                 ft_final_list = []       # 每个 shared 轨迹对应一个 final_plan(字典)
@@ -787,7 +788,7 @@ class FrenetPlanner(Planner):
                         # mode_num 遍历每个模式,sort_frenet_trajectories 用 mode_num 选择对应预测分支
                         # 针对每一个预测模式(不同障碍路径),挑选最便宜的备选轨迹
                         for mode_num, mode_selection in enumerate(joint_mode_selections):
-                            ft_conting_list_valid, ft_conting_list_invalid, validity_conting_dict = sort_frenet_trajectories(
+                            ft_conting_list_valid = sort_frenet_trajectories(
                                 ego_state=self.ego_state,
                                 fp_list=ft_contingent_list,
                                 global_path=self.global_path,
@@ -813,8 +814,10 @@ class FrenetPlanner(Planner):
                             # 建议:做保护:if not ft_conting_list_valid: continue/用备选
                             if len(ft_conting_list_valid) > 0:
                                 final_plan[mode_num] = ft_conting_list_valid[0]
-
-                    ft_final_list.append(final_plan)
+                    if t_list[0] == 0 or len(joint_mode_selections) == 0:
+                        ft_final_list.append(final_plan)
+                    elif len(final_plan) == len(joint_mode_selections) + 1:
+                        ft_final_list.append(final_plan)
 
                 # we need to get the belief over the modes to use it as weights in the cost function
                 '''
@@ -830,23 +833,24 @@ class FrenetPlanner(Planner):
                 # 将共享轨迹与各模式应急轨迹组合,形成总成本；权重来源于分支概率
                 # breakpoint()
                 for plan in ft_final_list:
-                    if len(plan) == 1:
-                        # This means we have only a single plan along the horizon
-                        # 只有 shared_plan,没有 contingent(例如 t_list[0]==0 或没算 contingent)
-                        plan['cost'] = plan['shared_plan'].cost
-                    else:
-                        dynamic_mode_weights = _get_joint_mode_weights(
-                            mode_belief=belief,
-                            mode_selections=joint_mode_selections,
-                        )
+                    # if len(plan) == 1:
+                    #     # This means we have only a single plan along the horizon
+                    #     # 只有 shared_plan,没有 contingent(例如 t_list[0]==0 或没算 contingent)
+                    #     plan['cost'] = plan['shared_plan'].cost
+                    # else:
+                    dynamic_mode_weights = _get_joint_mode_weights(
+                        mode_belief=belief,
+                        mode_selections=joint_mode_selections,
+                    )
 
-                        plan['cost'] = plan['shared_plan'].cost
-                        for mode_num, mode_weight in enumerate(dynamic_mode_weights):
-                            if mode_num in plan:
-                                plan['cost'] += mode_weight * plan[mode_num].cost
+                    plan['cost'] = plan['shared_plan'].cost
+                    for mode_num, mode_weight in enumerate(dynamic_mode_weights):
+                        if mode_num in plan:
+                            plan['cost'] += mode_weight * plan[mode_num].cost
 
                 # sort the final plan
                 # 最终按总代价排序,ft_final_list[0] 就是全计划最优
+                print("Final plans sorted")
                 ft_final_list.sort(key=lambda fp: fp['cost'], reverse=False)
 
         # =========================
@@ -970,9 +974,9 @@ class FrenetPlanner(Planner):
             #      如果你想执行的是“最优全计划”的 shared 段,应改为 ft_final_list[0]['shared_plan']
             if len(ft_final_list) > 0:
                 best_trajectory = ft_final_list[0]
-            elif len(ft_list_invalid) > 0:
-                best_trajectory = {'shared_plan': ft_list_invalid[0], 'cost': ft_list_invalid[0].cost}
-                # raise NoLocalTrajectoryFoundError('Failed. No valid frenét path found')
+            # elif len(ft_list_invalid) > 0:
+            #     best_trajectory = {'shared_plan': ft_list_invalid[0], 'cost': ft_list_invalid[0].cost}
+            #     raise RuntimeError('Failed. No valid frenét path found')
             else:
                 raise RuntimeError("No Frenet plan available for current step")
 
@@ -1027,7 +1031,7 @@ if __name__ == "__main__":
                                               ".xml")
     # --scenario:指定要评测的场景路径
     # 默认值被拆成两段字符串拼接(Python 会自动连接相邻字符串常量)
-    parser.add_argument("--time", action="store_true", default=True)  # 若传入 --time,则启用 cProfile 输出性能
+    parser.add_argument("--time", action="store_true", default=False)  # 若传入 --time,则启用 cProfile 输出性能
     # --time:布尔开关参数
     # - 不传入时 args.time == False
     # - 传入 --time 时 args.time == True,用于启用 cProfile 性能分析并输出报告
@@ -1105,12 +1109,73 @@ if __name__ == "__main__":
     # print("(frenet_planner_main传入evaluator)path_to_scenarios:", evaluator.path_to_scenarios)
     # print("(frenet_planner_main传入evaluator)log_path:", evaluator.log_path)
     # print("(frenet_planner_main传入evaluator)collision_report_path:", evaluator.collision_report_path)
+
+    def _write_single_exec_timing(return_dict, eval_dir, scenario_rel_path):
+        if "exec_times_dict" not in return_dict:
+            return
+
+        exec_times_dict = return_dict["exec_times_dict"]
+        if not exec_times_dict:
+            return
+
+        total_time = sum(exec_times_dict.get("total", []))
+        if total_time <= 0.0:
+            total_time = sum(sum(times) for times in exec_times_dict.values())
+        if total_time <= 0.0:
+            total_time = 1.0
+
+        evaluated_dict = {}
+        for key, item in exec_times_dict.items():
+            if len(item) == 0:
+                continue
+            evaluated_dict[key] = " || ".join(
+                [
+                    f"Percentage from total: {100 * sum(item) / total_time:.3f} %",
+                    f"Total time: {sum(item):.4f} s",
+                    f"Number of calls: {len(item)}",
+                    f"Avg exec time per call: {sum(item) / len(item):.6f}",
+                ]
+            )
+
+        def _group_dict_recursive(input_rec_dict):
+            working_dict = {}
+            for key, item in input_rec_dict.items():
+                split_key = key.split("/", 1)
+                if len(split_key) == 1:
+                    working_dict[split_key[0]] = item
+                else:
+                    if split_key[0] not in working_dict:
+                        working_dict[split_key[0]] = {}
+                    working_dict[split_key[0]][split_key[1]] = item
+            for key, item in working_dict.items():
+                if isinstance(item, dict):
+                    working_dict[key] = _group_dict_recursive(item)
+            return working_dict
+
+        scenario_name = pathlib.Path(scenario_rel_path).stem
+        file_path = eval_dir.joinpath(f"exec_timing_{scenario_name}.json")
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "w") as file_obj:
+            json.dump(_group_dict_recursive(evaluated_dict), file_obj, indent=6)
+
     def main():
         """主评测循环；在 `--time` 模式下供 cProfile 采样使用。"""
+        clear_plot_snapshots()
         # 这里将 eval_scenario 包装成函数 main(),是为了在 cProfile.run('main()') 中直接采样
         # evaluator.eval_scenario(...):执行单场景评测
         # print("(frenet_planner_main传入evaluator.eval_scenario):", scenario_path)
-        _ = evaluator.eval_scenario(scenario_path)
+        return_dict = evaluator.eval_scenario(scenario_path)
+        _write_single_exec_timing(return_dict, eval_directory, scenario_path)
+        replay_plot_snapshots(
+            fps=max(int(round(1.0 / evaluator.scenario.dt)), 1),
+            save_path=str(
+                eval_directory.joinpath(
+                    f"plot_replay_{pathlib.Path(scenario_path).stem}.gif"
+                )
+            ),
+            clear_after=True,
+        )
+        return return_dict
         # 打印 return_dict 方便快速查看评估结果,避免再去查日志或生成文件
         # print("(frenet_planner_main)eval_scenario 返回:", json.dumps(return_dict, indent=2, ensure_ascii=False))
 

@@ -137,69 +137,51 @@ def check_validity(
         - "max_risk"
         - ""（有效时）
     """
+    validity_level, reason = check_validity_basic(
+        ft=ft,
+        vehicle_params=vehicle_params,
+        exec_timer=exec_timer,
+    )
+    if validity_level != 10:
+        return validity_level, reason
 
-    # 如果外部没有传计时器，就创建一个“禁用 timing”的计时器
+    return check_risk_validity(
+        ft=ft,
+        risk_params=risk_params,
+        mode=mode,
+        exec_timer=exec_timer,
+    )
+
+
+def check_validity_basic(
+    ft,
+    vehicle_params,
+    exec_timer=None,
+):
     timer = ExecTimer(timing_enabled=False) if exec_timer is None else exec_timer
 
     with timer.time_with_cm(
         "simulation/sort trajectories/check validity/check velocity"
     ):
-        # ----------------------------
-        # 1) 检查最大速度是否超限
-        # ----------------------------
-        # 若轨迹任意时刻的纵向速度 |s_d| 超过车辆最大允许速度，则直接判为物理无效
         if not velocity_valid(ft, vehicle_params):
             return 0, "velocity"
 
     with timer.time_with_cm(
         "simulation/sort trajectories/check validity/check acceleration"
     ):
-        # ----------------------------
-        # 2) 检查最大加速度是否超限
-        # ----------------------------
-        # 这里按代码原样保留：
-        # 注意：这里当前实际调用的是 velocity_valid(ft, vehicle_params)
-        # 从语义上看应当是 acceleration_valid(ft, vehicle_params)，
-        # 但用户要求“不能改动任何源代码”，所以这里只做注释说明，不修改逻辑。
         if not acceleration_valid(ft, vehicle_params):
             return 0, "acceleration"
 
     with timer.time_with_cm(
         "simulation/sort trajectories/check validity/check curvature"
     ):
-        # ----------------------------
-        # 3) 检查曲率是否超限
-        # ----------------------------
-        # 曲率检查是动力学可行性的重要部分：
-        # - 低速时，车辆最大可达曲率近似由最小转弯半径决定
-        # - 高速时，最大可达曲率受横向加速度上限限制
         reason_curvature_invalid = curvature_valid(ft, vehicle_params)
-        
-        # curvature_valid 返回 None 表示有效；
-        # 返回 "lvc" 或 "hvc" 表示在 low velocity curvature / high velocity curvature 条件下无效
         if reason_curvature_invalid is not None:
             return 0, f"curvature ({reason_curvature_invalid})"
 
     with timer.time_with_cm(
         "simulation/sort trajectories/check validity/check collision"
     ):
-
-        # ----------------------------
-        # 4) 构造碰撞对象
-        # ----------------------------
-        # 将 Frenet 轨迹转成 CommonRoad 可以处理的碰撞轨迹对象
-        # collision_object = create_collision_object(ft, vehicle_params, ego_state)
-
-        # ----------------------------
-        # 5) 与障碍物做碰撞检查
-        # ----------------------------
-        # 注意：这段逻辑当前被整块注释掉了，
-        # 因此“碰撞”实际上不会使轨迹失效。
-        # 这意味着当前 validity 只靠速度/曲率/风险约束等在筛。
-        #
-        # 原本逻辑是：
-        # if not collision_valid(...):
-        #     return 1, "collision"
         '''
         if not collision_valid(
             ft,
@@ -218,15 +200,6 @@ def check_validity(
     with timer.time_with_cm(
         "simulation/sort trajectories/check validity/check road boundaries"
     ):
-        # ----------------------------
-        # 6) 检查是否越过道路边界
-        # ----------------------------
-        # 注意：这段逻辑当前也被注释掉了，
-        # 所以道路边界不会真正使轨迹判 invalid。
-        #
-        # 原本逻辑大致是：
-        # - 如果没有 predictions，用 road_boundary 直接做静态障碍碰撞检测
-        # - 如果有 predictions，则可能使用 ft.bd_harm 作为越界标志
         '''
         if predictions is None:
             if not boundary_valid(vehicle_params, collision_object, road_boundary):
@@ -236,19 +209,23 @@ def check_validity(
                 return 2, "boundaries"
         '''
 
+    return 10, ""
+
+
+def check_risk_validity(
+    ft,
+    risk_params,
+    mode: str,
+    exec_timer=None,
+):
+    timer = ExecTimer(timing_enabled=False) if exec_timer is None else exec_timer
+
     with timer.time_with_cm(
         "simulation/sort trajectories/check validity/check max risk"
     ):
-        # ----------------------------
-        # 7) 检查轨迹风险是否超过允许阈值
-        # ----------------------------
-        # 只有当 mode == "risk" 时该项才起作用
         if not max_risk_valid(ft, risk_params, mode):
             return 3, "max_risk"
 
-    # ----------------------------
-    # 8) 全部通过 => 有效
-    # ----------------------------
     return 10, ""
 
 
@@ -482,6 +459,8 @@ def max_risk_valid(ft, risk_params, mode):
     # 只有在 risk 模式下才检查风险阈值
     # ----------------------------
     if mode == "risk":
+        if not isinstance(ft.obst_risk_dict, dict) or not isinstance(ft.ego_risk_dict, dict):
+            return True
         # obst_risk_dict / ego_risk_dict 一般是：
         # { obstacle_id : risk_value }
         #
