@@ -47,9 +47,9 @@ from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.scenario.scenario import Scenario
 from commonroad.scenario.trajectory import State
 # CommonRoad-DC 碰撞检测
-from commonroad_dc.collision.collision_detection.pycrcc_collision_dispatch import (
-    create_collision_checker,
-)
+# from commonroad_dc.collision.collision_detection.pycrcc_collision_dispatch import (
+#     create_collision_checker,
+# )
 # 自定义异常:用于超时控制
 from commonroad_helper_functions.exceptions import (
     ExecutionTimeoutError,
@@ -193,6 +193,7 @@ class FrenetPlanner(Planner):
         self.zPred_rec = []
         self.exec_time = []
         self.branch_w_rec = []
+        self.obstacle_belief_history = {}
 
         self.long_jerk = []  # 纵向 jerk 记录(调试舒适性)
         self.lat_jerk = []  # 横向 jerk 记录
@@ -323,18 +324,18 @@ class FrenetPlanner(Planner):
                     self.reach_set = None
 
                 # 碰撞检测器需要移除 ego 车辆(否则会与自身碰撞)
-                with self.exec_timer.time_with_cm(
-                        "initialization/initialize collision checker"
-                ):
-                    # deep copy 场景,移除 ego obstacle,避免自碰撞
-                    cc_scenario = copy.deepcopy(self.scenario)
-                    cc_scenario.remove_obstacle(
-                        obstacle=[cc_scenario.obstacle_by_id(ego_id)]
-                    )
-                    try:
-                        self.collision_checker = create_collision_checker(cc_scenario)
-                    except Exception:
-                        raise BrokenPipeError("Collision Checker fails.") from None
+                # with self.exec_timer.time_with_cm(
+                #         "initialization/initialize collision checker"
+                # ):
+                #     # deep copy 场景,移除 ego obstacle,避免自碰撞
+                #     cc_scenario = copy.deepcopy(self.scenario)
+                #     cc_scenario.remove_obstacle(
+                #         obstacle=[cc_scenario.obstacle_by_id(ego_id)]
+                #     )
+                #     try:
+                #         self.collision_checker = create_collision_checker(cc_scenario)
+                #     except Exception:
+                #         raise BrokenPipeError("Collision Checker fails.") from None
                 self.exec_timer.stop_timer("initialization/total")
         except ExecutionTimeoutError:
             raise TimeoutError
@@ -613,6 +614,11 @@ class FrenetPlanner(Planner):
                         dict(zip(multimodal_obstacle_ids, mode_indices))
                         for mode_indices in product(*multimodal_mode_ranges)
                     ]
+                if prediction_belief is not None:
+                    self._record_obstacle_belief(
+                        time_step=self.ego_state.time_step,
+                        predictions=predictions,
+                    )
 
         def _get_joint_mode_weights(mode_belief, mode_selections):
             if not mode_selections:
@@ -684,7 +690,6 @@ class FrenetPlanner(Planner):
                 ego_id=self.ego_id,
                 dt=self.frenet_parameters["dt"],
                 sensor_radius=self.sensor_radius,
-                collision_checker=self.collision_checker,
                 exec_timer=self.exec_timer,
                 start_idx=0,
                 mode_num=100,
@@ -801,7 +806,6 @@ class FrenetPlanner(Planner):
                                 ego_id=self.ego_id,
                                 dt=self.frenet_parameters["dt"],
                                 sensor_radius=self.sensor_radius,
-                                collision_checker=self.collision_checker,
                                 exec_timer=self.exec_timer,
                                 # start_idx:从 shared horizon 结束处开始评估(避免重复从0开始)
                                 start_idx=int(max(self.frenet_parameters["t_list"]) / self.frenet_parameters["dt"]),
@@ -1004,6 +1008,70 @@ class FrenetPlanner(Planner):
         # 返回最佳计划、仿真状态记录、预测轨迹以及障碍更新信息,供上层决策使用
         return best_trajectory, state_rec, zPred, self.obst_new_state
 
+    def _record_obstacle_belief(self, time_step, predictions):
+        for obstacle_id, pred in predictions.items():
+            belief_values = pred.get("mode_prob")
+            if belief_values is None:
+                continue
+            history = self.obstacle_belief_history.setdefault(
+                obstacle_id,
+                {"timesteps": [], "beliefs": [], "mode_behavior": []},
+            )
+            history["timesteps"].append(int(time_step))
+            history["beliefs"].append(list(belief_values))
+            mode_behavior = pred.get("mode_behavior")
+            if mode_behavior is not None:
+                history["mode_behavior"] = list(mode_behavior)
+
+    def save_obstacle_belief_plots(self, output_dir, scenario_name=None):
+        if len(self.obstacle_belief_history) == 0:
+            return
+
+        output_path = pathlib.Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        scenario_prefix = "" if scenario_name is None else f"{scenario_name}_"
+
+        for obstacle_id, history in self.obstacle_belief_history.items():
+            timesteps = history["timesteps"]
+            belief_series = history["beliefs"]
+            mode_behavior = history.get("mode_behavior", [])
+            if len(timesteps) == 0 or len(belief_series) == 0:
+                continue
+
+            mode_count = max(len(values) for values in belief_series)
+            fig, ax = plt.subplots()
+
+            for mode_idx in range(mode_count):
+                mode_values = [
+                    values[mode_idx] if mode_idx < len(values) else np.nan
+                    for values in belief_series
+                ]
+                ax.plot(
+                    timesteps,
+                    mode_values,
+                    marker="o",
+                    linewidth=1.5,
+                    label=(
+                        f"mode {mode_idx} ({mode_behavior[mode_idx]})"
+                        if mode_idx < len(mode_behavior)
+                        else f"mode {mode_idx}"
+                    ),
+                )
+
+            ax.set_xlabel("timestep")
+            ax.set_ylabel("belief")
+            ax.set_ylim(0.0, 1.0)
+            ax.set_title(f"Obstacle {obstacle_id} belief evolution")
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+            fig.tight_layout()
+            fig.savefig(
+                output_path.joinpath(
+                    f"{scenario_prefix}obstacle_{obstacle_id}_belief.png"
+                )
+            )
+            plt.close(fig)
+
 
 if __name__ == "__main__":
     # ===== 命令行入口:加载配置并调用 ScenarioEvaluator =====
@@ -1176,9 +1244,6 @@ if __name__ == "__main__":
             clear_after=True,
         )
         return return_dict
-        # 打印 return_dict 方便快速查看评估结果,避免再去查日志或生成文件
-        # print("(frenet_planner_main)eval_scenario 返回:", json.dumps(return_dict, indent=2, ensure_ascii=False))
-
 
     if args.time:
         # ===== 性能分析模式(cProfile) =====

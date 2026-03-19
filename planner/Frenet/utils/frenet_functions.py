@@ -1003,7 +1003,6 @@ def sort_frenet_trajectories(
         ego_id: int,
         dt: float,
         sensor_radius: float,
-        collision_checker,
         exec_timer=None,
         start_idx=0,
         mode_num=100,

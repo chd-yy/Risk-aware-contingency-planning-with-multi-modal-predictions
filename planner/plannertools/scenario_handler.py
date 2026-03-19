@@ -289,12 +289,13 @@ class ScenarioHandler:
             for agent in self.agent_list:
                 # Also pass in timestep because it is needed in the recorder
                 # That gets derived from the evaluator
-                # self._check_collision(agent=agent, time_step=time_step)
+                # TODO(yanjun): 这里检查是否碰撞
+                self._check_collision_simple(agent=agent, time_step=time_step)
                 # 做一步规划:agent.step 会调用 planner 生成轨迹/控制
                 self._do_simulation_step(agent=agent, time_step=time_step)
             # stop if the max_simulation_time is reached and no reason was found
             # 如果走到最后一步还没结束(比如没到达目标),就强制抛异常
-            if time_step == 30:
+            if time_step == 40:
                 # breakpoint()
                 raise GoalReachedNotification("Goal reached in time!")
             if time_step == (max_simulation_time_steps - 1):
@@ -618,6 +619,43 @@ class ScenarioHandler:
         raise NoLocalTrajectoryFoundError(
             "Collision in the driven path with {0}. Total harm: {1:.2f}".format(obs_obj.type,
                                                                                 self.ego_harm + self.obs_harm))
+
+    def _check_collision_simple(self, agent, time_step):
+        """
+        简化版碰撞检测：
+        只判断 ego 当前状态是否发生碰撞；
+        一旦碰撞，直接抛异常，不做伤害计算和报告生成。
+        """
+        ego_obstacle = self.scenario.obstacle_by_id(obstacle_id=agent.agent_id)
+
+        if time_step == 0:
+            ego_pos = ego_obstacle.initial_state.position
+            ego_yaw = ego_obstacle.initial_state.orientation
+        else:
+            occupancy = ego_obstacle.occupancy_at_time(time_step=time_step)
+            if occupancy is None:
+                return
+
+            ego_pos = occupancy.shape.center
+            last_occupancy = ego_obstacle.occupancy_at_time(time_step=time_step - 1)
+            if last_occupancy is None:
+                ego_yaw = ego_obstacle.initial_state.orientation
+            else:
+                delta_pos = ego_pos - last_occupancy.shape.center
+                if np.linalg.norm(delta_pos) > 1e-9:
+                    ego_yaw = np.arctan2(delta_pos[1], delta_pos[0])
+                else:
+                    ego_yaw = ego_obstacle.initial_state.orientation
+
+        current_state_collision_object = create_tvobstacle(
+            traj_list=[[ego_pos[0], ego_pos[1], ego_yaw]],
+            box_length=self.vehicle_params.l / 2,
+            box_width=self.vehicle_params.w / 2,
+            start_time_step=time_step,
+        )
+
+        if self.collision_checker.collide(current_state_collision_object):
+            raise NoLocalTrajectoryFoundError("Collision detected.")
 
 
 class PlannerCreator:

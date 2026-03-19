@@ -492,7 +492,44 @@ def get_reachable_lanelets_from_obstacle_position(
                     reachable_lanelet_sequences.append(path_lanelet_ids[1:])
 
     reachable_lanelet_sequences = [seq for seq in reachable_lanelet_sequences if len(seq) > 0]
-    return reachable_lanelet_sequences
+
+    unique_reachable_lanelet_sequences = []
+    seen_sequences = set()
+    for reachable_lanelet_sequence in reachable_lanelet_sequences:
+        sequence_key = tuple(reachable_lanelet_sequence)
+        if sequence_key in seen_sequences:
+            continue
+        seen_sequences.add(sequence_key)
+        unique_reachable_lanelet_sequences.append(reachable_lanelet_sequence)
+
+    return unique_reachable_lanelet_sequences
+
+
+def _wrap_to_pi(angle):
+    return (angle + np.pi) % (2.0 * np.pi) - np.pi
+
+
+def _classify_mode_traj_behavior(mode_traj):
+    mode_points = np.asarray(mode_traj, dtype=float)
+    if mode_points.ndim != 2 or len(mode_points) < 2:
+        return "straight"
+
+    sample_span = max(1, min(3, len(mode_points) - 1))
+    start_vec = mode_points[sample_span] - mode_points[0]
+    end_vec = mode_points[-1] - mode_points[-1 - sample_span]
+    if np.linalg.norm(start_vec) < 1e-9 or np.linalg.norm(end_vec) < 1e-9:
+        return "straight"
+
+    start_yaw = float(np.arctan2(start_vec[1], start_vec[0]))
+    end_yaw = float(np.arctan2(end_vec[1], end_vec[0]))
+    yaw_delta = _wrap_to_pi(end_yaw - start_yaw)
+
+    turn_threshold = np.deg2rad(15.0)
+    if yaw_delta > turn_threshold:
+        return "left"
+    if yaw_delta < -turn_threshold:
+        return "right"
+    return "straight"
 
 
 def generate_gt_mode_trajectories_to_lanelets(
@@ -732,6 +769,7 @@ def build_multimodal_gmm_predictions(
                 "pos_list": [base_mean],
                 "cov_list": [base_cov],
                 "mode_prob": [1.0],
+                "mode_behavior": ["straight"],
             }
             continue
         # ------------------------------------------------------------------
@@ -741,13 +779,15 @@ def build_multimodal_gmm_predictions(
         mode_pos_list = []
         # 保存每个 mode 的未来协方差序列
         mode_cov_list = []
+        # 保存每个 mode 的行为标签
+        mode_behavior_list = []
         # 保存每个 mode 的“对数似然”分数，后面用于 softmax 得到概率
         mode_log_likelihood = []
         eps = 1e-6
         # ------------------------------------------------------------------
         # Step 8: 遍历每一个候选 mode，构造 GMM 分量并计算相对似然
         # ------------------------------------------------------------------
-        for mode_traj in mode_trajs:
+        for mode_idx, mode_traj in enumerate(mode_trajs):
             # 当前 mode 的均值轨迹，转成 float ndarray
             mode_mean = np.asarray(mode_traj, dtype=float)
             # 当前实现中，直接复用单模态预测器输出的协方差作为该 mode 的协方差
@@ -785,6 +825,7 @@ def build_multimodal_gmm_predictions(
             mode_pos_list.append(mode_mean)
             # 保存该 mode 的协方差序列
             mode_cov_list.append(mode_cov)
+            mode_behavior_list.append(_classify_mode_traj_behavior(mode_mean))
         # ------------------------------------------------------------------
         # Step 9: 对所有 mode 的分数做 softmax，得到 mode 概率
         # ------------------------------------------------------------------
@@ -804,6 +845,7 @@ def build_multimodal_gmm_predictions(
             "cov_list": mode_cov_list,
             # 各 mode 的归一化概率
             "mode_prob": mode_prob.tolist(),
+            "mode_behavior": mode_behavior_list,
         }
     # 返回所有障碍物的多模态 GMM 风格预测结果
     return prediction_result

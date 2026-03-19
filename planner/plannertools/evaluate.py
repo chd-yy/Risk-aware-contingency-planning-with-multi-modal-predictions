@@ -78,6 +78,7 @@ class ScenarioEvaluator(ScenarioHandler):
                 # 初始化:读场景、创建 ego agent、创建碰撞检测器等
                 self._initialize()
                 # 仿真:循环 time_step,让 agent.step() 推进
+                # breakpoint()
                 self._simulate()
             except GoalReachedNotification as excp:
                 # 如果抛出 GoalReachedNotification,说明达到目标了(属于成功)
@@ -110,6 +111,15 @@ class ScenarioEvaluator(ScenarioHandler):
             # TODO implement saving and animating scenario
             # self.postprocess()
         # ---------- 下面开始统一补充 return_dict 的其他字段(无论成功失败都会写) ----------
+        scenario_name = pathlib.Path(scenario_path).stem
+        belief_plot_directory = pathlib.Path("./planner/Frenet/results/eval/belief_plots").resolve()
+        for agent in self.agent_list:
+            planner = getattr(agent, "planner", None)
+            if planner is not None and hasattr(planner, "save_obstacle_belief_plots"):
+                planner.save_obstacle_belief_plots(
+                    output_dir=belief_plot_directory,
+                    scenario_name=scenario_name,
+                )
 
         # 记录场景路径(原始字符串)            
         return_dict["scenario_path"] = scenario_path
