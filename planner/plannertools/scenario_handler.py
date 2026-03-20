@@ -12,6 +12,8 @@
 """
 
 import numpy as np
+import pathlib
+import matplotlib.pyplot as plt
 from commonroad.common.file_reader import CommonRoadFileReader
 
 # 计时工具:用于统计某些步骤耗时(可开可不开)
@@ -125,6 +127,7 @@ class ScenarioHandler:
         self.obstacle_updater = None
         # vel_list 记录 ego 的速度历史(用于碰撞时的速度估计)
         self.vel_list = []
+        self.motion_history = {}
         # harm 用来统计伤害结果(你可以理解为一个“分类统计表”)
         self.harm = {
             "Ego": 0.0,
@@ -205,6 +208,8 @@ class ScenarioHandler:
             ego_ids=[agent.agent_id for agent in self.agent_list],
             dt=self.scenario.dt,
         )
+        self.motion_history = {}
+        self._record_motion_snapshot(time_step=0)
 
         # create a collision checker
         # remove the ego vehicle from the scenario
@@ -294,6 +299,7 @@ class ScenarioHandler:
                     ego_agents=self.agent_list,
                     next_time_step=time_step + 1,
                 )
+            self._record_motion_snapshot(time_step=time_step + 1)
 
 
     def _do_simulation_step(self, **kwargs):
@@ -650,6 +656,69 @@ class ScenarioHandler:
             collision_object = create_collision_object(obstacle)
             if current_state_collision_object.collide(collision_object):
                 raise NoLocalTrajectoryFoundError("Collision detected.")
+
+    def _record_motion_snapshot(self, time_step: int):
+        ego_ids = set() if self.agent_list is None else {agent.agent_id for agent in self.agent_list}
+        for obstacle in self.scenario.dynamic_obstacles:
+            state = obstacle.state_at_time(time_step)
+            if state is None and time_step == obstacle.initial_state.time_step:
+                state = obstacle.initial_state
+            if state is None:
+                continue
+
+            history = self.motion_history.setdefault(
+                obstacle.obstacle_id,
+                {
+                    "timesteps": [],
+                    "velocity": [],
+                    "acceleration": [],
+                    "is_ego": obstacle.obstacle_id in ego_ids,
+                },
+            )
+
+            if len(history["timesteps"]) > 0 and history["timesteps"][-1] == int(time_step):
+                history["velocity"][-1] = float(getattr(state, "velocity", 0.0))
+                history["acceleration"][-1] = float(getattr(state, "acceleration", 0.0))
+                continue
+
+            history["timesteps"].append(int(time_step))
+            history["velocity"].append(float(getattr(state, "velocity", 0.0)))
+            history["acceleration"].append(float(getattr(state, "acceleration", 0.0)))
+
+    def save_motion_plots(self, output_dir, scenario_name=None):
+        if len(self.motion_history) == 0:
+            return
+
+        output_path = pathlib.Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        scenario_prefix = "" if scenario_name is None else f"{scenario_name}_"
+
+        for obstacle_id, history in self.motion_history.items():
+            timesteps = history["timesteps"]
+            if len(timesteps) == 0:
+                continue
+
+            actor_name = "ego" if history.get("is_ego", False) else "obstacle"
+            for value_key, ylabel in [
+                ("velocity", "velocity [m/s]"),
+                ("acceleration", "acceleration [m/s²]"),
+            ]:
+                fig, ax = plt.subplots()
+                ax.plot(
+                    timesteps,
+                    history[value_key],
+                    marker="o",
+                    linewidth=1.5,
+                )
+                ax.set_xlabel("timestep")
+                ax.set_ylabel(ylabel)
+                ax.set_title(f"{actor_name} {obstacle_id} {value_key}")
+                ax.grid(True, alpha=0.3)
+                fig.tight_layout()
+                fig.savefig(
+                    output_path / f"{scenario_prefix}{actor_name}_{obstacle_id}_{value_key}.png"
+                )
+                plt.close(fig)
 
 
 class PlannerCreator:

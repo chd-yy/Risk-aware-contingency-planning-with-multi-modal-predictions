@@ -113,6 +113,7 @@ class ScenarioEvaluator(ScenarioHandler):
         # ---------- 下面开始统一补充 return_dict 的其他字段(无论成功失败都会写) ----------
         scenario_name = pathlib.Path(scenario_path).stem
         belief_plot_directory = pathlib.Path("./planner/Frenet/results/eval/belief_plots").resolve()
+        motion_plot_directory = pathlib.Path("./planner/Frenet/results/eval/motion_plots").resolve()
         for agent in self.agent_list:
             planner = getattr(agent, "planner", None)
             if planner is not None and hasattr(planner, "save_obstacle_belief_plots"):
@@ -120,6 +121,11 @@ class ScenarioEvaluator(ScenarioHandler):
                     output_dir=belief_plot_directory,
                     scenario_name=scenario_name,
                 )
+        if hasattr(self, "save_motion_plots"):
+            self.save_motion_plots(
+                output_dir=motion_plot_directory,
+                scenario_name=scenario_name,
+            )
 
         # 记录场景路径(原始字符串)            
         return_dict["scenario_path"] = scenario_path

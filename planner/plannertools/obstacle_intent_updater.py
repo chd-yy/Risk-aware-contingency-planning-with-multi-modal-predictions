@@ -198,14 +198,14 @@ class YieldChallengeUpdater:
             cruise_speed = max(2.0, initial_speed)
             self.obstacle_states[obstacle.obstacle_id] = _ObstacleIntentState(
                 obstacle_id=obstacle.obstacle_id,
-                intent="yield" if obstacle.obstacle_id % 2 == 0 else "challenge",
+                intent="challenge",
                 path_points=path_points,
                 arc_lengths=arc_lengths,
                 path_line=path_line,
                 current_s=current_s,
                 current_speed=cruise_speed,
                 cruise_speed=cruise_speed,
-                challenge_speed=max(cruise_speed + 2.0, cruise_speed * 1.25),
+                challenge_speed=max(cruise_speed + 4.0, cruise_speed * 1.6),
                 last_state=obstacle.initial_state,
             )
 
@@ -234,6 +234,7 @@ class YieldChallengeUpdater:
             prediction.shape_lanelet_assignment = {}
 
             if obstacle.obstacle_id in self.obstacle_states:
+                self.obstacle_states[obstacle.obstacle_id].intent = "challenge"
                 self.obstacle_states[obstacle.obstacle_id].current_s = float(
                     self.obstacle_states[obstacle.obstacle_id].path_line.project(
                         Point(
@@ -278,6 +279,12 @@ class YieldChallengeUpdater:
                     ego_agent_speed=ego_speed,
                     conflict_point=conflict_point,
                 )
+                self._update_intent_from_interaction(
+                    obstacle_state=obstacle_state,
+                    distance_to_conflict=distance_to_conflict,
+                    obstacle_ttc=obstacle_ttc,
+                    ego_ttc=ego_ttc,
+                )
 
                 if obstacle_state.intent == "yield":
                     desired_speed = self._yield_speed(
@@ -307,6 +314,35 @@ class YieldChallengeUpdater:
             obstacle_state.last_state = updated_state
 
         return scenario
+
+    def _update_intent_from_interaction(
+        self,
+        obstacle_state: _ObstacleIntentState,
+        distance_to_conflict: float,
+        obstacle_ttc: float,
+        ego_ttc: float,
+    ):
+        if not np.isfinite(ego_ttc):
+            obstacle_state.intent = "challenge"
+            return
+
+        if distance_to_conflict > 65.0:
+            obstacle_state.intent = "challenge"
+            return
+
+        ego_dominant = ego_ttc + 1.8 < obstacle_ttc
+        obstacle_dominant = obstacle_ttc + 0.8 < ego_ttc
+
+        if obstacle_state.intent == "challenge":
+            if ego_dominant or (
+                distance_to_conflict < 30.0 and ego_ttc < obstacle_ttc + 2.2
+            ):
+                obstacle_state.intent = "yield"
+        else:
+            if obstacle_dominant or (
+                distance_to_conflict > 22.0 and ego_ttc > obstacle_ttc + 1.2
+            ):
+                obstacle_state.intent = "challenge"
 
     def _select_reference_ego_line(self, ego_agents: List, obstacle_state: _ObstacleIntentState):
         best_agent = None
@@ -347,6 +383,19 @@ class YieldChallengeUpdater:
         return obstacle_ttc, distance_to_conflict
 
     def _compute_ego_ttc(self, ego_line: LineString, ego_agent_speed: float, conflict_point: np.ndarray):
+        ego_coords = np.asarray(ego_line.coords, dtype=float)
+        if len(ego_coords) < 2:
+            return float("inf")
+
+        ego_start = ego_coords[0]
+        ego_heading_vec = ego_coords[min(1, len(ego_coords) - 1)] - ego_start
+        if np.linalg.norm(ego_heading_vec) < 1e-9:
+            ego_heading_vec = ego_coords[-1] - ego_start
+
+        point_vec = np.asarray(conflict_point, dtype=float) - ego_start
+        if np.dot(point_vec, ego_heading_vec) <= 0.5:
+            return float("inf")
+
         ego_distance = float(
             max(
                 0.0,
@@ -362,13 +411,18 @@ class YieldChallengeUpdater:
         obstacle_ttc: float,
         ego_ttc: float,
     ) -> float:
-        if distance_to_conflict > 35.0:
+        if not np.isfinite(ego_ttc):
             return obstacle_state.cruise_speed
-        if ego_ttc <= obstacle_ttc + 1.5:
-            stop_distance = max(0.0, distance_to_conflict - 4.0)
+        if distance_to_conflict > 55.0:
+            return obstacle_state.cruise_speed
+        if ego_ttc <= obstacle_ttc + 2.8:
+            stop_distance = max(0.0, distance_to_conflict - 10.0)
+            target_speed = float(np.sqrt(max(0.0, 2.0 * 3.2 * stop_distance)))
+            if distance_to_conflict < 18.0:
+                target_speed = min(target_speed, 1.2)
             return min(
                 obstacle_state.cruise_speed,
-                float(np.sqrt(max(0.0, 2.0 * 2.5 * stop_distance))),
+                target_speed,
             )
         return obstacle_state.cruise_speed
 
@@ -379,10 +433,12 @@ class YieldChallengeUpdater:
         obstacle_ttc: float,
         ego_ttc: float,
     ) -> float:
-        if distance_to_conflict > 40.0:
-            return obstacle_state.cruise_speed
-        if obstacle_ttc >= ego_ttc - 0.5:
+        if distance_to_conflict > 55.0:
             return obstacle_state.challenge_speed
+        if obstacle_ttc >= ego_ttc - 1.2:
+            return obstacle_state.challenge_speed
+        if distance_to_conflict < 18.0:
+            return max(obstacle_state.challenge_speed, obstacle_state.current_speed + 2.5)
         return obstacle_state.cruise_speed
 
     def _propagate_state(
@@ -391,7 +447,7 @@ class YieldChallengeUpdater:
         desired_speed: float,
         next_time_step: int,
     ) -> State:
-        max_acc = 1.5
+        max_acc = 3.5 if obstacle_state.intent == "challenge" else 1.5
         max_dec = 3.5
         speed_error = desired_speed - obstacle_state.current_speed
         acceleration = float(np.clip(speed_error / self.dt, -max_dec, max_acc))

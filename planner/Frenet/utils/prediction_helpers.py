@@ -390,6 +390,30 @@ def _gaussian_likelihood(value, mean, sigma):
     return float(np.exp(-0.5 * error * error))
 
 
+def _get_recent_obstacle_speeds(obstacle, time_step: int, window: int = 5):
+    if obstacle is None:
+        return []
+
+    start_time_step = max(obstacle.initial_state.time_step, int(time_step) - window + 1)
+    speed_history = []
+    for ts in range(start_time_step, int(time_step) + 1):
+        state = _get_obstacle_state_at_timestep(obstacle, ts)
+        if state is None:
+            continue
+        speed_history.append(float(max(0.0, getattr(state, "velocity", 0.0))))
+    return speed_history
+
+
+def _get_speed_trend(speed_history, dt: float):
+    if len(speed_history) < 2:
+        return 0.0, 0.0
+
+    speed_values = np.asarray(speed_history, dtype=float)
+    speed_delta = float(speed_values[-1] - speed_values[0])
+    mean_acc = float(np.mean(np.diff(speed_values)) / max(dt, 1e-3))
+    return speed_delta, mean_acc
+
+
 def update_yield_challenge_belief(
         predictions: dict,
         scenario,
@@ -403,6 +427,8 @@ def update_yield_challenge_belief(
 
     if dt is None:
         dt = scenario.dt
+    forgetting_factor = 0.72
+    neutral_prior = np.array([0.5, 0.5], dtype=float)
     updated_predictions = predictions
     updated_belief = {} if prior_belief is None else dict(prior_belief)
 
@@ -420,11 +446,15 @@ def update_yield_challenge_belief(
             prior = np.array([0.5, 0.5], dtype=float)
         prior = np.clip(prior, 1e-6, None)
         prior = prior / np.sum(prior)
+        prior = forgetting_factor * prior + (1.0 - forgetting_factor) * neutral_prior
+        prior = prior / np.sum(prior)
 
         obstacle = scenario.obstacle_by_id(obstacle_id)
         obstacle_state = _get_obstacle_state_at_timestep(obstacle, time_step)
         observed_speed = float(max(0.0, getattr(obstacle_state, "velocity", 0.0)))
         observed_acc = float(getattr(obstacle_state, "acceleration", 0.0))
+        speed_history = _get_recent_obstacle_speeds(obstacle, time_step=time_step, window=5)
+        speed_delta, mean_trend_acc = _get_speed_trend(speed_history, dt=dt)
 
         yield_traj = np.asarray(pos_list[0], dtype=float)
         challenge_traj = np.asarray(pos_list[1], dtype=float)
@@ -438,6 +468,20 @@ def update_yield_challenge_belief(
 
         yield_likelihood = _gaussian_likelihood(observed_speed, yield_ref_speed, sigma=max(0.5, 0.35 * challenge_ref_speed))
         challenge_likelihood = _gaussian_likelihood(observed_speed, challenge_ref_speed, sigma=max(0.5, 0.35 * challenge_ref_speed))
+
+        if speed_delta < -0.6:
+            yield_likelihood *= 2.2
+            challenge_likelihood *= 0.55
+        elif speed_delta > 0.4:
+            challenge_likelihood *= 1.8
+            yield_likelihood *= 0.8
+
+        if mean_trend_acc < -0.35:
+            yield_likelihood *= 1.0 + min(2.5, -mean_trend_acc)
+            challenge_likelihood *= 0.7
+        elif mean_trend_acc > 0.25:
+            challenge_likelihood *= 1.0 + min(2.0, mean_trend_acc)
+            yield_likelihood *= 0.8
 
         conflict_point = _extract_first_conflict_point(ego_line, challenge_traj)
         if conflict_point is not None:
@@ -466,10 +510,21 @@ def update_yield_challenge_belief(
                 yield_likelihood *= 0.7
 
             if obstacle_distance_to_conflict < 25.0:
+                if ego_ttc <= obstacle_ttc + 1.5 and (
+                    observed_acc < -0.2 or mean_trend_acc < -0.25 or speed_delta < -0.4
+                ):
+                    yield_likelihood *= 4.5
+                    challenge_likelihood *= 0.2
+                elif obstacle_ttc + 0.8 < ego_ttc and mean_trend_acc > -0.1:
+                    challenge_likelihood *= 2.5
+                    yield_likelihood *= 0.5
+
                 if observed_acc < -0.2:
                     yield_likelihood *= (1.0 + min(2.0, -observed_acc))
+                    challenge_likelihood *= 0.7
                 elif observed_acc > 0.2:
                     challenge_likelihood *= (1.0 + min(2.0, observed_acc))
+                    yield_likelihood *= 0.8
 
         likelihood = np.array([yield_likelihood, challenge_likelihood], dtype=float)
         posterior = prior * np.clip(likelihood, 1e-6, None)
@@ -478,6 +533,8 @@ def update_yield_challenge_belief(
             posterior = np.array([0.5, 0.5], dtype=float)
         else:
             posterior = posterior / posterior_sum
+        posterior = 0.92 * posterior + 0.08 * neutral_prior
+        posterior = posterior / np.sum(posterior)
 
         pred["mode_prob"] = posterior.tolist()
         updated_belief[obstacle_id] = posterior.tolist()

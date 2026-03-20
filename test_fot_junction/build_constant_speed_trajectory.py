@@ -1,6 +1,26 @@
 import math
 from commonroad_helper_functions.utils.cubicspline import CubicSpline2D # 引入二维样条曲线工具类
 
+x_20044 = [
+    -13.80150327,
+    -5.7196,
+    -1.31025,
+    3.10105,
+    15.99805,
+    28.8915,
+]
+
+y_20044 = [
+    18.76672966,
+    5.9996,
+    -0.9907,
+    -7.9814,
+    -28.57775,
+    -49.16435,
+]
+
+reference_spline_20044 = CubicSpline2D(x=x_20044, y=y_20044)
+
 x_20087 = [
             -13.37925857, -6.25415,
             0.76165, 7.7703,
@@ -81,7 +101,7 @@ def build_constant_speed_trajectory_xml(
     xml_lines.append("</trajectory>")
     return "\n".join(xml_lines)
 
-xml_text = build_constant_speed_trajectory_xml(
+xml_text_20087 = build_constant_speed_trajectory_xml(
     spline=reference_spline_20087,
     v0=4.2318,
     yaw0=0.5602456307067419,
@@ -90,9 +110,23 @@ xml_text = build_constant_speed_trajectory_xml(
     num_states=151,
 )
 
-# 保存到 xml 文件
-output_file = "trajectory_20087.xml"
-with open(output_file, "w", encoding="utf-8") as f:
-    f.write(xml_text)
+xml_text_20044 = build_constant_speed_trajectory_xml(
+    spline=reference_spline_20044,
+    v0=6.0,
+    yaw0=-1.0058463890667786,
+    dt=0.1,
+    start_time_step=0,
+    num_states=151,
+)
 
-print(f"已保存到 {output_file}")
+# 保存到 xml 文件
+# output_file_20087 = "trajectory_20087.xml"
+# with open(output_file_20087, "w", encoding="utf-8") as f:
+#     f.write(xml_text_20087)
+
+output_file_20044 = "trajectory_20044.xml"
+with open(output_file_20044, "w", encoding="utf-8") as f:
+    f.write(xml_text_20044)
+
+# print(f"已保存到 {output_file_20087}")
+print(f"已保存到 {output_file_20044}")
