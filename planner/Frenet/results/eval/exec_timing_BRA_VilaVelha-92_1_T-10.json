@@ -1,74 +1,11 @@
 {
-      "read scenario": "Percentage from total: 0.075 % || Total time: 0.0586 s || Number of calls: 1 || Avg exec time per call: 0.058551",
-      "read vehicle parameters": "Percentage from total: 0.000 % || Total time: 0.0000 s || Number of calls: 1 || Avg exec time per call: 0.000006",
-      "add vehicle to scenario": "Percentage from total: 0.000 % || Total time: 0.0001 s || Number of calls: 1 || Avg exec time per call: 0.000057",
+      "read scenario": "Percentage from total: 27.828 % || Total time: 0.0543 s || Number of calls: 1 || Avg exec time per call: 0.054269",
+      "read vehicle parameters": "Percentage from total: 0.003 % || Total time: 0.0000 s || Number of calls: 1 || Avg exec time per call: 0.000006",
+      "add vehicle to scenario": "Percentage from total: 0.034 % || Total time: 0.0001 s || Number of calls: 1 || Avg exec time per call: 0.000067",
       "initialization": {
-            "plan global path": "Percentage from total: 0.000 % || Total time: 0.0004 s || Number of calls: 1 || Avg exec time per call: 0.000387",
-            "total": "Percentage from total: 0.188 % || Total time: 0.1466 s || Number of calls: 1 || Avg exec time per call: 0.146581",
-            "initialize collision checker": "Percentage from total: 0.008 % || Total time: 0.0062 s || Number of calls: 1 || Avg exec time per call: 0.006165"
+            "plan global path": "Percentage from total: 0.187 % || Total time: 0.0004 s || Number of calls: 1 || Avg exec time per call: 0.000365",
+            "total": "Percentage from total: 66.322 % || Total time: 0.1293 s || Number of calls: 1 || Avg exec time per call: 0.129337",
+            "initialize collision checker": "Percentage from total: 0.719 % || Total time: 0.0014 s || Number of calls: 1 || Avg exec time per call: 0.001403"
       },
-      "simulation": {
-            "update driven trajectory": "Percentage from total: 0.000 % || Total time: 0.0003 s || Number of calls: 41 || Avg exec time per call: 0.000007",
-            "get v list": "Percentage from total: 0.003 % || Total time: 0.0022 s || Number of calls: 41 || Avg exec time per call: 0.000053",
-            "calculate trajectories": {
-                  "initialize quartic polynomial": "Percentage from total: 0.115 % || Total time: 0.0892 s || Number of calls: 6222 || Avg exec time per call: 0.000014",
-                  "calculate quartic polynomial": "Percentage from total: 0.174 % || Total time: 0.1356 s || Number of calls: 6222 || Avg exec time per call: 0.000022",
-                  "calculate global trajectory": {
-                        "calculate reference points": "Percentage from total: 0.159 % || Total time: 0.1236 s || Number of calls: 6222 || Avg exec time per call: 0.000020",
-                        "calculate reference gradients": "Percentage from total: 1.162 % || Total time: 0.9043 s || Number of calls: 6222 || Avg exec time per call: 0.000145",
-                        "calculate reference yaw": "Percentage from total: 0.011 % || Total time: 0.0089 s || Number of calls: 6222 || Avg exec time per call: 0.000001",
-                        "calculate reference curvature": "Percentage from total: 0.052 % || Total time: 0.0405 s || Number of calls: 6222 || Avg exec time per call: 0.000007",
-                        "calculate reference curvature derivation": "Percentage from total: 0.124 % || Total time: 0.0966 s || Number of calls: 6222 || Avg exec time per call: 0.000016",
-                        "calculate trajectory states": "Percentage from total: 0.728 % || Total time: 0.5663 s || Number of calls: 37619 || Avg exec time per call: 0.000015"
-                  },
-                  "initialize quintic polynomial": "Percentage from total: 0.729 % || Total time: 0.5677 s || Number of calls: 37619 || Avg exec time per call: 0.000015",
-                  "calculate quintic polynomial": "Percentage from total: 1.394 % || Total time: 1.0852 s || Number of calls: 37619 || Avg exec time per call: 0.000029",
-                  "initialize trajectory": "Percentage from total: 0.079 % || Total time: 0.0616 s || Number of calls: 37619 || Avg exec time per call: 0.000002",
-                  "total": "Percentage from total: 0.280 % || Total time: 0.2183 s || Number of calls: 41 || Avg exec time per call: 0.005324"
-            },
-            "prediction": "Percentage from total: 0.558 % || Total time: 0.4346 s || Number of calls: 41 || Avg exec time per call: 0.010601",
-            "sort trajectories": {
-                  "check validity": {
-                        "check velocity": "Percentage from total: 1.258 % || Total time: 0.9790 s || Number of calls: 316199 || Avg exec time per call: 0.000003",
-                        "check acceleration": "Percentage from total: 6.335 % || Total time: 4.9307 s || Number of calls: 315821 || Avg exec time per call: 0.000016",
-                        "total": "Percentage from total: 13.302 % || Total time: 10.3524 s || Number of calls: 316199 || Avg exec time per call: 0.000033",
-                        "check curvature": "Percentage from total: 4.454 % || Total time: 3.4663 s || Number of calls: 252193 || Avg exec time per call: 0.000014",
-                        "check collision": "Percentage from total: 0.058 % || Total time: 0.0451 s || Number of calls: 219278 || Avg exec time per call: 0.000000",
-                        "check road boundaries": "Percentage from total: 0.057 % || Total time: 0.0445 s || Number of calls: 219278 || Avg exec time per call: 0.000000",
-                        "check max risk": "Percentage from total: 0.281 % || Total time: 0.2184 s || Number of calls: 219278 || Avg exec time per call: 0.000001",
-                        "risk total": "Percentage from total: 0.526 % || Total time: 0.4091 s || Number of calls: 219278 || Avg exec time per call: 0.000002"
-                  },
-                  "calculate costs": {
-                        "calculate risk": {
-                              "collision probability": "Percentage from total: 34.792 % || Total time: 27.0781 s || Number of calls: 219278 || Avg exec time per call: 0.000123",
-                              "calculate harm": {
-                                    "calculate PDOF simple": "Percentage from total: 18.991 % || Total time: 14.7803 s || Number of calls: 443318 || Avg exec time per call: 0.000033"
-                              },
-                              "total": "Percentage from total: 1.900 % || Total time: 1.4791 s || Number of calls: 216959 || Avg exec time per call: 0.000007"
-                        },
-                        "get cost factor": {
-                              "goal reached?": "Percentage from total: 0.071 % || Total time: 0.0549 s || Number of calls: 216959 || Avg exec time per call: 0.000000",
-                              "goal reached in time?": "Percentage from total: 0.066 % || Total time: 0.0513 s || Number of calls: 216959 || Avg exec time per call: 0.000000",
-                              "total": "Percentage from total: 0.498 % || Total time: 0.3877 s || Number of calls: 216959 || Avg exec time per call: 0.000002"
-                        },
-                        "calculate responsibility": {
-                              "total": "Percentage from total: 0.063 % || Total time: 0.0490 s || Number of calls: 216959 || Avg exec time per call: 0.000000"
-                        },
-                        "calculate visible area": "Percentage from total: 0.073 % || Total time: 0.0564 s || Number of calls: 216959 || Avg exec time per call: 0.000000",
-                        "calculate jerk": "Percentage from total: 0.072 % || Total time: 0.0559 s || Number of calls: 216959 || Avg exec time per call: 0.000000",
-                        "calculate velocity": "Percentage from total: 0.063 % || Total time: 0.0491 s || Number of calls: 216959 || Avg exec time per call: 0.000000",
-                        "calculate distance to global path": "Percentage from total: 1.190 % || Total time: 0.9264 s || Number of calls: 216959 || Avg exec time per call: 0.000004",
-                        "calculate travelled distance": "Percentage from total: 0.071 % || Total time: 0.0555 s || Number of calls: 216959 || Avg exec time per call: 0.000000",
-                        "calculate distance to goal pos": "Percentage from total: 0.068 % || Total time: 0.0531 s || Number of calls: 216959 || Avg exec time per call: 0.000000",
-                        "calculate distance to lane center": "Percentage from total: 0.065 % || Total time: 0.0507 s || Number of calls: 216959 || Avg exec time per call: 0.000000",
-                        "multiply weights and costs": "Percentage from total: 0.236 % || Total time: 0.1835 s || Number of calls: 216959 || Avg exec time per call: 0.000001",
-                        "total": "Percentage from total: 5.900 % || Total time: 4.5921 s || Number of calls: 216959 || Avg exec time per call: 0.000021"
-                  },
-                  "sort list by costs": "Percentage from total: 86.696 % || Total time: 67.4744 s || Number of calls: 41 || Avg exec time per call: 1.645718",
-                  "total": "Percentage from total: 87.657 % || Total time: 68.2222 s || Number of calls: 41 || Avg exec time per call: 1.663955"
-            },
-            "total": "Percentage from total: 98.572 % || Total time: 76.7171 s || Number of calls: 41 || Avg exec time per call: 1.871148"
-      },
-      "plot trajectories": "Percentage from total: 10.071 % || Total time: 7.8381 s || Number of calls: 41 || Avg exec time per call: 0.191172",
-      "total": "Percentage from total: 100.000 % || Total time: 77.8285 s || Number of calls: 1 || Avg exec time per call: 77.828518"
+      "total": "Percentage from total: 100.000 % || Total time: 0.1950 s || Number of calls: 1 || Avg exec time per call: 0.195013"
 }

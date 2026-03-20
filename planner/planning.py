@@ -540,21 +540,18 @@ class Planner(object):
         """
         # 用计时器包裹这个代码块,统计“规划全局路径”的耗时
         with self.exec_timer.time_with_cm("initialization/plan global path"):
-            # x = [
-            #     15.9923642,         6.06495,
-            #     4.85655,            3.4265,            2.32685,
-            #     1.10915,            -0.20755,            -1.58235,
-            #     -2.96815,            -4.98995,            -6.89705,
-            #     -8.10415,            -54.06815,            -100.0234
-            #     ]
-
-            # y = [
-            #     -21.86624793,        -6.12275,
-            #     -4.42595,            -2.91335,            -2.0663,
-            #     -1.40115,            -0.96475,            -0.7815,
-            #     -0.8549,            -1.3449,            -2.181,
-            #     -2.8721,            -31.6067,            -60.3365
-            #     ]
+            # x_20087 = [
+            #             -98.1832, -52.21285, -6.25415,
+            #             0.76165, 7.7703,
+            #             73.5337, 96.68405, 105.4992,
+            #             113.81915, 134.6848, 169.9884
+            #             ]
+            # y_20087 = [
+            #             -63.3123, -34.57445, -5.84265,
+            #             -1.42295, 2.9928,
+            #             44.47185, 59.5234, 65.4727,
+            #             71.235, 84.94785, 107.67835
+            #             ]
             x = [
                 15.9923642,                14.925595841823453,                13.858827483646904,
                 12.792059125470356,                11.725290767293806,                10.658522409117259,
@@ -658,13 +655,12 @@ class Planner(object):
             self.__reference_spline = CubicSpline2D(
                 x=self.global_path[:, 0], y=self.global_path[:, 1]
             )
-            # reference_spline_20044 = CubicSpline2D(
-            #     x=x_20044, y=y_20044
+            # reference_spline_20087 = CubicSpline2D(
+            #     x=x_20087, y=y_20087
             # )
             # breakpoint()
-            # print(reference_spline_20044.calc_position(0.0))
-            # print(reference_spline_20044.calc_
-
+            # print(reference_spline_20087.calc_position(100.0))
+            # print(reference_spline_20087.calc_yaw(100.0))
             # print(self.__reference_spline.calc_position(0.0))
 
             # print(self.__reference_spline.calc_yaw(0.0))

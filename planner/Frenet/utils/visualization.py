@@ -1430,7 +1430,7 @@ def draw_scenario(
     if planning_problem is not None:
         draw_object(planning_problem, ax=ax)
 
-    # 高亮 ego vehicle
+    # 高亮 scenario.dynamic_obstacles
     if marked_vehicle is not None:
         draw_object(
             # obj=scenario.obstacle_by_id(marked_vehicle),

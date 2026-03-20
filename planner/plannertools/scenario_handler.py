@@ -27,6 +27,9 @@ from beliefplanning.planner.planning import (
     PlanningAgent,
     add_ego_vehicles_to_scenario,
 )
+from beliefplanning.planner.plannertools.obstacle_intent_updater import (
+    YieldChallengeUpdater,
+)
 
 import copy
 
@@ -119,6 +122,7 @@ class ScenarioHandler:
         self.vehicle_params = None
         # agent_list 存放所有 PlanningAgent(一般每辆 ego 车一个 agent)
         self.agent_list = None
+        self.obstacle_updater = None
         # vel_list 记录 ego 的速度历史(用于碰撞时的速度估计)
         self.vel_list = []
         # harm 用来统计伤害结果(你可以理解为一个“分类统计表”)
@@ -155,6 +159,7 @@ class ScenarioHandler:
         """
 
         # 1) 读入场景文件:self.scenario_path 必须在调用 _initialize() 之前被设置好
+        # breakpoint()
         with self.exec_timer.time_with_cm("read scenario"):
             self.scenario, self.planning_problem_set = CommonRoadFileReader(
                 self.scenario_path
@@ -194,6 +199,12 @@ class ScenarioHandler:
                     in self.agent_planning_problem_id_assignment
             ):
                 self._create_planner_agent_for_ego_vehicle(dynamic_obstacle.obstacle_id)
+
+        self.obstacle_updater = YieldChallengeUpdater(
+            scenario=self.scenario,
+            ego_ids=[agent.agent_id for agent in self.agent_list],
+            dt=self.scenario.dt,
+        )
 
         # create a collision checker
         # remove the ego vehicle from the scenario
@@ -240,6 +251,10 @@ class ScenarioHandler:
             self.scenario = clean_scenario(
                 scenario=self.scenario, agent_list=self.agent_list
             )
+            if self.obstacle_updater is not None:
+                self.scenario = self.obstacle_updater.reset_scenario_obstacles(
+                    scenario=self.scenario
+                )
 
             # get the max time for the simulation
             # max_time_steps 是“任务期望的最大时间步”(这里固定写 51)
@@ -252,40 +267,6 @@ class ScenarioHandler:
         # 进入主循环:time_step 从 0 到 max_simulation_time_steps - 1
         auto_play = False
         for time_step in range(max_simulation_time_steps):
-            # if auto_play:
-            #     cmd = input(
-            #         f"[time_step={time_step}] 自动播放中: 回车继续, 输入 a 暂停, d 单步, q 退出: "
-            #     ).strip().lower()
-
-            #     if cmd == "":
-            #         pass
-            #     elif cmd == "a":
-            #         auto_play = False
-            #         print("Auto play: OFF")
-            #         continue
-            #     elif cmd == "d":
-            #         auto_play = False
-            #         print("切到单步模式，执行当前这一步")
-            #     elif cmd == "q":
-            #         print("Quit simulation")
-            #         break
-            #     else:
-            #         print("无效输入，默认继续自动播放")
-            # else:
-            #     cmd = input(
-            #         f"[time_step={time_step}] 暂停中: 输入 d 单步, a 自动播放, q 退出: "
-            #     ).strip().lower()
-            #     if cmd == "d":
-            #         pass
-            #     elif cmd == "a":
-            #         auto_play = True
-            #         print("Auto play: ON")
-            #     elif cmd == "q":
-            #         print("Quit simulation")
-            #         break
-            #     else:
-            #         print("无效输入，请输入 d / a / q")
-            #         continue
             for agent in self.agent_list:
                 # Also pass in timestep because it is needed in the recorder
                 # That gets derived from the evaluator
@@ -295,7 +276,7 @@ class ScenarioHandler:
                 self._do_simulation_step(agent=agent, time_step=time_step)
             # stop if the max_simulation_time is reached and no reason was found
             # 如果走到最后一步还没结束(比如没到达目标),就强制抛异常
-            if time_step == 40:
+            if time_step == 50:
                 # breakpoint()
                 raise GoalReachedNotification("Goal reached in time!")
             if time_step == (max_simulation_time_steps - 1):
@@ -306,6 +287,13 @@ class ScenarioHandler:
             self.scenario = update_scenario(
                 scenario=self.scenario, agent_list=self.agent_list
             )
+            # breakpoint()
+            if self.obstacle_updater is not None:
+                self.scenario = self.obstacle_updater.step(
+                    scenario=self.scenario,
+                    ego_agents=self.agent_list,
+                    next_time_step=time_step + 1,
+                )
 
 
     def _do_simulation_step(self, **kwargs):
@@ -654,8 +642,14 @@ class ScenarioHandler:
             start_time_step=time_step,
         )
 
-        if self.collision_checker.collide(current_state_collision_object):
-            raise NoLocalTrajectoryFoundError("Collision detected.")
+        for obstacle in self.scenario.obstacles:
+            if obstacle.obstacle_id == agent.agent_id:
+                continue
+            if obstacle.occupancy_at_time(time_step) is None:
+                continue
+            collision_object = create_collision_object(obstacle)
+            if current_state_collision_object.collide(collision_object):
+                raise NoLocalTrajectoryFoundError("Collision detected.")
 
 
 class PlannerCreator:

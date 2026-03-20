@@ -8,6 +8,7 @@ import numpy as np
 import os
 # Python 运行环境相关接口，用于修改模块搜索路径
 import sys
+from shapely.geometry import LineString, Point
 # CommonRoad 中用于区分障碍物角色（动态 / 静态）的枚举
 from commonroad.scenario.obstacle import ObstacleRole
 # CommonRoad Drivability Checker 中的轨迹碰撞查询工具
@@ -41,6 +42,7 @@ sys.path.append(module_path)
 # create_tvobstacle: 根据轨迹创建时变碰撞对象
 # distance: 计算两点之间距离
 from planner.Frenet.utils.helper_functions import create_tvobstacle, distance
+from planner.plannertools.obstacle_intent_updater import _build_straight_lanelet_path
 
 
 def _get_obstacle_state_at_timestep(obstacle, timestep: int = None):
@@ -347,6 +349,142 @@ def _safe_softmax(logits, temperature=1.0):
     return exp_x / denom
 
 
+def _build_heading_line(start_position, heading, distance=80.0):
+    start = np.asarray(start_position, dtype=float)
+    end = start + distance * np.array([np.cos(heading), np.sin(heading)])
+    return LineString([start, end])
+
+
+def _extract_first_conflict_point(ego_line: LineString, mode_traj) -> np.ndarray:
+    mode_points = np.asarray(mode_traj, dtype=float)
+    if mode_points.ndim != 2 or mode_points.shape[0] < 2:
+        return None
+
+    mode_line = LineString(mode_points)
+    intersection = ego_line.intersection(mode_line)
+    if intersection.is_empty:
+        return None
+    if intersection.geom_type == "Point":
+        return np.array([intersection.x, intersection.y], dtype=float)
+    if intersection.geom_type == "MultiPoint":
+        point = list(intersection.geoms)[0]
+        return np.array([point.x, point.y], dtype=float)
+    if intersection.geom_type in {"LineString", "LinearRing"}:
+        coords = np.asarray(intersection.coords, dtype=float)
+        if len(coords) > 0:
+            return coords[len(coords) // 2]
+    if hasattr(intersection, "geoms"):
+        for geom in intersection.geoms:
+            if geom.geom_type == "Point":
+                return np.array([geom.x, geom.y], dtype=float)
+            if geom.geom_type in {"LineString", "LinearRing"}:
+                coords = np.asarray(geom.coords, dtype=float)
+                if len(coords) > 0:
+                    return coords[len(coords) // 2]
+    return None
+
+
+def _gaussian_likelihood(value, mean, sigma):
+    sigma = max(float(sigma), 1e-3)
+    error = (float(value) - float(mean)) / sigma
+    return float(np.exp(-0.5 * error * error))
+
+
+def update_yield_challenge_belief(
+        predictions: dict,
+        scenario,
+        ego_state,
+        time_step: int,
+        prior_belief: dict = None,
+        dt: float = None,
+):
+    if predictions is None or len(predictions) == 0:
+        return {}, {} if prior_belief is None else prior_belief
+
+    if dt is None:
+        dt = scenario.dt
+    updated_predictions = predictions
+    updated_belief = {} if prior_belief is None else dict(prior_belief)
+
+    ego_heading = float(getattr(ego_state, "orientation", 0.0))
+    ego_speed = max(0.1, float(getattr(ego_state, "velocity", 0.0)))
+    ego_line = _build_heading_line(ego_state.position, ego_heading)
+
+    for obstacle_id, pred in updated_predictions.items():
+        pos_list = pred.get("pos_list")
+        if not isinstance(pos_list, list) or len(pos_list) < 2:
+            continue
+
+        prior = np.asarray(updated_belief.get(obstacle_id, pred.get("mode_prob", [0.5, 0.5])), dtype=float)
+        if prior.shape[0] != 2:
+            prior = np.array([0.5, 0.5], dtype=float)
+        prior = np.clip(prior, 1e-6, None)
+        prior = prior / np.sum(prior)
+
+        obstacle = scenario.obstacle_by_id(obstacle_id)
+        obstacle_state = _get_obstacle_state_at_timestep(obstacle, time_step)
+        observed_speed = float(max(0.0, getattr(obstacle_state, "velocity", 0.0)))
+        observed_acc = float(getattr(obstacle_state, "acceleration", 0.0))
+
+        yield_traj = np.asarray(pos_list[0], dtype=float)
+        challenge_traj = np.asarray(pos_list[1], dtype=float)
+        if len(yield_traj) < 2 or len(challenge_traj) < 2:
+            pred["mode_prob"] = prior.tolist()
+            updated_belief[obstacle_id] = prior.tolist()
+            continue
+
+        yield_ref_speed = np.linalg.norm(yield_traj[1] - yield_traj[0]) / max(dt, 1e-3)
+        challenge_ref_speed = np.linalg.norm(challenge_traj[1] - challenge_traj[0]) / max(dt, 1e-3)
+
+        yield_likelihood = _gaussian_likelihood(observed_speed, yield_ref_speed, sigma=max(0.5, 0.35 * challenge_ref_speed))
+        challenge_likelihood = _gaussian_likelihood(observed_speed, challenge_ref_speed, sigma=max(0.5, 0.35 * challenge_ref_speed))
+
+        conflict_point = _extract_first_conflict_point(ego_line, challenge_traj)
+        if conflict_point is not None:
+            challenge_line = LineString(challenge_traj)
+            obstacle_progress = challenge_line.project(
+                Point(float(obstacle_state.position[0]), float(obstacle_state.position[1]))
+            )
+            conflict_progress = challenge_line.project(
+                Point(float(conflict_point[0]), float(conflict_point[1]))
+            )
+            obstacle_distance_to_conflict = max(0.0, float(conflict_progress - obstacle_progress))
+            obstacle_ttc = obstacle_distance_to_conflict / max(observed_speed, 0.1)
+
+            ego_distance_to_conflict = max(
+                0.0,
+                float(ego_line.project(Point(float(conflict_point[0]), float(conflict_point[1])))),
+            )
+            ego_ttc = ego_distance_to_conflict / ego_speed
+
+            ttc_margin = 1.0
+            if ego_ttc + ttc_margin < obstacle_ttc:
+                yield_likelihood *= 2.5
+                challenge_likelihood *= 0.6
+            elif obstacle_ttc + 0.5 < ego_ttc:
+                challenge_likelihood *= 2.2
+                yield_likelihood *= 0.7
+
+            if obstacle_distance_to_conflict < 25.0:
+                if observed_acc < -0.2:
+                    yield_likelihood *= (1.0 + min(2.0, -observed_acc))
+                elif observed_acc > 0.2:
+                    challenge_likelihood *= (1.0 + min(2.0, observed_acc))
+
+        likelihood = np.array([yield_likelihood, challenge_likelihood], dtype=float)
+        posterior = prior * np.clip(likelihood, 1e-6, None)
+        posterior_sum = np.sum(posterior)
+        if posterior_sum <= 0.0:
+            posterior = np.array([0.5, 0.5], dtype=float)
+        else:
+            posterior = posterior / posterior_sum
+
+        pred["mode_prob"] = posterior.tolist()
+        updated_belief[obstacle_id] = posterior.tolist()
+
+    return updated_predictions, updated_belief
+
+
 def _lanelet_heading(lanelet):
     """Estimate lanelet heading using center vertices."""
     center = np.asarray(lanelet.center_vertices)
@@ -509,27 +647,80 @@ def _wrap_to_pi(angle):
     return (angle + np.pi) % (2.0 * np.pi) - np.pi
 
 
-def _classify_mode_traj_behavior(mode_traj):
-    mode_points = np.asarray(mode_traj, dtype=float)
-    if mode_points.ndim != 2 or len(mode_points) < 2:
-        return "straight"
+def _build_yield_challenge_mode_trajectories(obstacle_state, base_mean, horizon, dt):
+    base_points = np.asarray(base_mean, dtype=float)
+    current_pos = np.asarray(obstacle_state.position, dtype=float)
 
-    sample_span = max(1, min(3, len(mode_points) - 1))
-    start_vec = mode_points[sample_span] - mode_points[0]
-    end_vec = mode_points[-1] - mode_points[-1 - sample_span]
-    if np.linalg.norm(start_vec) < 1e-9 or np.linalg.norm(end_vec) < 1e-9:
-        return "straight"
+    if base_points.ndim != 2 or base_points.shape[1] != 2 or len(base_points) == 0:
+        heading = float(getattr(obstacle_state, "orientation", 0.0))
+        fallback_end = current_pos + 30.0 * np.array([np.cos(heading), np.sin(heading)])
+        path_points = np.vstack([current_pos, fallback_end])
+    else:
+        if np.linalg.norm(base_points[0] - current_pos) < 1e-6:
+            path_points = base_points
+        else:
+            path_points = np.vstack([current_pos, base_points])
 
-    start_yaw = float(np.arctan2(start_vec[1], start_vec[0]))
-    end_yaw = float(np.arctan2(end_vec[1], end_vec[0]))
-    yaw_delta = _wrap_to_pi(end_yaw - start_yaw)
+    if len(path_points) == 1:
+        path_points = np.vstack([path_points, path_points])
 
-    turn_threshold = np.deg2rad(15.0)
-    if yaw_delta > turn_threshold:
-        return "left"
-    if yaw_delta < -turn_threshold:
-        return "right"
-    return "straight"
+    path_lengths = _polyline_arc_lengths(path_points)
+    path_total_length = float(path_lengths[-1])
+
+    if horizon <= 1 or path_total_length < 1e-6:
+        repeated = np.repeat(path_points[:1], max(horizon, 1), axis=0)
+        return [repeated, repeated.copy()]
+
+    base_ds = path_total_length / max(horizon - 1, 1)
+    base_speed = max(float(getattr(obstacle_state, "velocity", 0.0)), base_ds / max(dt, 1e-3), 0.2)
+
+    challenge_ds = base_speed * dt
+    yield_ds = min(challenge_ds * 0.35, 1.0)
+
+    challenge_traj = _sample_polyline(path_points, 0.0, challenge_ds, horizon)
+    yield_traj = _sample_polyline(path_points, 0.0, yield_ds, horizon)
+    return [yield_traj, challenge_traj]
+
+
+def get_rule_based_base_predictions(
+        scenario,
+        obstacle_id_list,
+        horizon: int,
+        timestep: int = None,
+        dt: float = None,
+):
+    if dt is None:
+        dt = scenario.dt
+
+    prediction_result = {}
+    for obstacle_id in obstacle_id_list:
+        obstacle = scenario.obstacle_by_id(obstacle_id)
+        if obstacle is None or obstacle.obstacle_role != ObstacleRole.DYNAMIC:
+            continue
+
+        obstacle_state = _get_obstacle_state_at_timestep(obstacle, timestep)
+        path_points = _build_straight_lanelet_path(
+            scenario=scenario,
+            initial_state=obstacle.initial_state,
+        )
+        start_s = _project_point_to_polyline(
+            point=np.asarray(obstacle_state.position, dtype=float),
+            polyline=path_points,
+        )
+        speed = max(float(getattr(obstacle_state, "velocity", 0.0)), 0.2)
+        base_mean = _sample_polyline(path_points, start_s, speed * dt, horizon)
+
+        base_cov = []
+        for step_idx in range(horizon):
+            variance = 0.2 + 0.03 * step_idx
+            base_cov.append([[variance, 0.0], [0.0, variance]])
+
+        prediction_result[obstacle_id] = {
+            "pos_list": np.asarray(base_mean, dtype=float),
+            "cov_list": np.asarray(base_cov, dtype=float),
+        }
+
+    return prediction_result
 
 
 def generate_gt_mode_trajectories_to_lanelets(
@@ -721,57 +912,12 @@ def build_multimodal_gmm_predictions(
             # 这里假设每个时间步的协方差都相同，为 [[0.2, 0], [0, 0.2]]
             # Fallback covariance if predictor horizon is shorter.
             base_cov = np.array([[[0.2, 0.0], [0.0, 0.2]]] * horizon_len)
-        # ------------------------------------------------------------------
-        # Step 4: 推断该障碍物可能的目标 lanelet（即 mode / intent 候选）
-        # ------------------------------------------------------------------
-        # 这些 lanelet 可以理解为“行为意图”的离散候选
-        target_lanelet_sequences = get_reachable_lanelets_from_obstacle_position(
-            scenario=scenario,
-            obstacle_position = obstacle_position,
-        )
-        if len(target_lanelet_sequences) == 0:
-            target_lanelet_sequences = []
-        # ------------------------------------------------------------------
-        # Step 5: 针对每个目标 lanelet序列，生成一条对应的 mode 轨迹
-        # ------------------------------------------------------------------
-
-        # generate_gt_mode_trajectories_to_lanelets 的作用通常是：
-        # 给定目标 lanelet 列表，分别生成朝向这些 lanelet 的未来轨迹
-        #
-        # 返回的 mode_trajs 一般是一个列表：
-        #   [
-        #       traj_mode_0,   shape ~ [T, 2]
-        #       traj_mode_1,   shape ~ [T, 2]
-        #       ...
-        #   ]
-        #
-        # 也就是说：每个元素是一条候选 mode 的未来位置轨迹
-        mode_trajs = generate_gt_mode_trajectories_to_lanelets(
-            scenario=scenario,
-            obstacle_state = obstacle_state,
-            target_lanelet_sequences=target_lanelet_sequences,
+        mode_trajs = _build_yield_challenge_mode_trajectories(
+            obstacle_state=obstacle_state,
+            base_mean=base_mean,
             horizon=horizon_len,
             dt=scenario.dt,
         )
-        # ------------------------------------------------------------------
-        # Step 6: 如果无法生成任何候选 mode，则退化为单模态
-        # ------------------------------------------------------------------
-
-        # Fallback to single-mode when no lanelet intent is available.
-        # 如果没有任何 lanelet intent / mode 轨迹可用，
-        # 则回退为只有一个 mode 的 prediction：
-        # - 均值 = 原始单模态预测均值
-        # - 协方差 = 原始单模态预测协方差
-        # - 概率 = 1.0
-        # Fallback to single-mode when no lanelet intent is available.
-        if len(mode_trajs) == 0:
-            prediction_result[obstacle_id] = {
-                "pos_list": [base_mean],
-                "cov_list": [base_cov],
-                "mode_prob": [1.0],
-                "mode_behavior": ["straight"],
-            }
-            continue
         # ------------------------------------------------------------------
         # Step 7: 初始化多模态结果容器
         # ------------------------------------------------------------------
@@ -779,8 +925,7 @@ def build_multimodal_gmm_predictions(
         mode_pos_list = []
         # 保存每个 mode 的未来协方差序列
         mode_cov_list = []
-        # 保存每个 mode 的行为标签
-        mode_behavior_list = []
+        mode_behavior_list = ["yield", "challenge"]
         # 保存每个 mode 的“对数似然”分数，后面用于 softmax 得到概率
         mode_log_likelihood = []
         eps = 1e-6
@@ -825,7 +970,6 @@ def build_multimodal_gmm_predictions(
             mode_pos_list.append(mode_mean)
             # 保存该 mode 的协方差序列
             mode_cov_list.append(mode_cov)
-            mode_behavior_list.append(_classify_mode_traj_behavior(mode_mean))
         # ------------------------------------------------------------------
         # Step 9: 对所有 mode 的分数做 softmax，得到 mode 概率
         # ------------------------------------------------------------------
@@ -834,7 +978,7 @@ def build_multimodal_gmm_predictions(
         # temperature 用于控制分布尖锐程度：
         # - temperature 小：概率更尖锐，更偏向最大分数的 mode
         # - temperature 大：概率更平滑，更均匀
-        mode_prob = _safe_softmax(mode_log_likelihood, temperature=likelihood_temperature)
+        mode_prob = np.array([0.5, 0.5], dtype=float)
         # ------------------------------------------------------------------
         # Step 10: 将当前障碍物的多模态结果写入 prediction_result
         # ------------------------------------------------------------------

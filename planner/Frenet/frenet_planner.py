@@ -46,6 +46,7 @@ import matplotlib.pyplot as plt
 from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.scenario.scenario import Scenario
 from commonroad.scenario.trajectory import State
+from commonroad.scenario.obstacle import ObstacleRole
 # CommonRoad-DC 碰撞检测
 # from commonroad_dc.collision.collision_detection.pycrcc_collision_dispatch import (
 #     create_collision_checker,
@@ -101,6 +102,8 @@ from beliefplanning.planner.Frenet.utils.prediction_helpers import (
     get_obstacles_prediction_overtake,
     get_prediction_from_scenario_tree, # 你在 _step_planner 里用这个把 zPred -> predictions
     build_multimodal_gmm_predictions,
+    get_rule_based_base_predictions,
+    update_yield_challenge_belief,
 )
 
 # 读取 json 配置:伤害模型/规划参数/风险参数/权重/应急规划参数
@@ -194,6 +197,7 @@ class FrenetPlanner(Planner):
         self.exec_time = []
         self.branch_w_rec = []
         self.obstacle_belief_history = {}
+        self.obstacle_mode_belief = {}
 
         self.long_jerk = []  # 纵向 jerk 记录(调试舒适性)
         self.lat_jerk = []  # 横向 jerk 记录
@@ -568,13 +572,34 @@ class FrenetPlanner(Planner):
                 int(max(self.contingency_parameters["t_list"]) / self.contingency_parameters["dt"]),
                 1,
             ) + 1
+            visible_dynamic_obstacle_ids = [
+                obstacle_id for obstacle_id in visible_obstacle_ids
+                if obstacle_id != self.ego_id
+                and self.scenario.obstacle_by_id(obstacle_id).obstacle_role == ObstacleRole.DYNAMIC
+            ]
 
             if self.prediction is not None:
                 base_predictions = {
                     obstacle_id: self.prediction[obstacle_id]
-                    for obstacle_id in visible_obstacle_ids
-                    if obstacle_id != self.ego_id and obstacle_id in self.prediction
+                    for obstacle_id in visible_dynamic_obstacle_ids
+                    if obstacle_id in self.prediction
                 }
+                missing_obstacle_ids = [
+                    obstacle_id for obstacle_id in visible_dynamic_obstacle_ids
+                    if obstacle_id not in base_predictions
+                ]
+                if len(missing_obstacle_ids) > 0:
+                    fallback_base_predictions = get_rule_based_base_predictions(
+                        scenario=self.scenario,
+                        obstacle_id_list=missing_obstacle_ids,
+                        horizon=pred_horizon,
+                        timestep=self.ego_state.time_step,
+                        dt=self.scenario.dt,
+                    )
+                    if base_predictions is None:
+                        base_predictions = fallback_base_predictions
+                    else:
+                        base_predictions.update(fallback_base_predictions)
                 if len(base_predictions) > 0:
                     predictions = build_multimodal_gmm_predictions(
                         scenario=self.scenario,
@@ -595,6 +620,14 @@ class FrenetPlanner(Planner):
                 predictions = get_orientation_velocity_and_shape_of_prediction(
                     predictions,
                     self.scenario,
+                )
+                predictions, self.obstacle_mode_belief = update_yield_challenge_belief(
+                    predictions=predictions,
+                    scenario=self.scenario,
+                    ego_state=self.ego_state,
+                    time_step=self.ego_state.time_step,
+                    prior_belief=self.obstacle_mode_belief,
+                    dt=self.scenario.dt,
                 )
                 prediction_belief = {
                     obstacle_id: pred["mode_prob"]
@@ -854,7 +887,7 @@ class FrenetPlanner(Planner):
 
                 # sort the final plan
                 # 最终按总代价排序,ft_final_list[0] 就是全计划最优
-                print("Final plans sorted")
+                # print("Final plans sorted")
                 ft_final_list.sort(key=lambda fp: fp['cost'], reverse=False)
 
         # =========================
