@@ -780,6 +780,12 @@ def draw_all_plans(
             keys_list = list(best_traj[i])
             j = 1
             for key in keys_list[1:-1]:
+                if key not in best_traj[i]:
+                    continue
+                if not hasattr(best_traj[i][key], "x") or not hasattr(best_traj[i][key], "d"):
+                    continue
+                if best_traj[i][key].d is None or len(best_traj[i][key].d) == 0:
+                    continue
                 if abs(best_traj[i][key].d[-1] + 3.6) < 0.1:
                     j = 0
                 elif abs(best_traj[i][key].d[-1] + 2.88) < 0.1:
@@ -820,6 +826,10 @@ def draw_all_plans(
     # 再画最佳计划的 contingent 部分
     keys_list = list(best_traj[0])
     for idx, key in enumerate(keys_list[1:-1]):
+        if key not in best_traj[0]:
+            continue
+        if not hasattr(best_traj[0][key], "x"):
+            continue
         ax.plot(
             best_traj[0][key].x,
             best_traj[0][key].y,

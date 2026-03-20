@@ -161,6 +161,7 @@ def _extract_conflict_point(
 class _ObstacleIntentState:
     obstacle_id: int
     intent: str
+    last_intent_switch_time: int
     path_points: np.ndarray
     arc_lengths: np.ndarray
     path_line: LineString
@@ -199,6 +200,7 @@ class YieldChallengeUpdater:
             self.obstacle_states[obstacle.obstacle_id] = _ObstacleIntentState(
                 obstacle_id=obstacle.obstacle_id,
                 intent="challenge",
+                last_intent_switch_time=int(getattr(obstacle.initial_state, "time_step", 0)),
                 path_points=path_points,
                 arc_lengths=arc_lengths,
                 path_line=path_line,
@@ -235,6 +237,7 @@ class YieldChallengeUpdater:
 
             if obstacle.obstacle_id in self.obstacle_states:
                 self.obstacle_states[obstacle.obstacle_id].intent = "challenge"
+                self.obstacle_states[obstacle.obstacle_id].last_intent_switch_time = int(initial_state.time_step)
                 self.obstacle_states[obstacle.obstacle_id].current_s = float(
                     self.obstacle_states[obstacle.obstacle_id].path_line.project(
                         Point(
@@ -284,6 +287,7 @@ class YieldChallengeUpdater:
                     distance_to_conflict=distance_to_conflict,
                     obstacle_ttc=obstacle_ttc,
                     ego_ttc=ego_ttc,
+                    next_time_step=next_time_step,
                 )
 
                 if obstacle_state.intent == "yield":
@@ -321,28 +325,39 @@ class YieldChallengeUpdater:
         distance_to_conflict: float,
         obstacle_ttc: float,
         ego_ttc: float,
+        next_time_step: int,
     ):
+        hold_steps = 6
+        if next_time_step - obstacle_state.last_intent_switch_time < hold_steps:
+            return
+
         if not np.isfinite(ego_ttc):
-            obstacle_state.intent = "challenge"
+            if obstacle_state.intent != "challenge":
+                obstacle_state.intent = "challenge"
+                obstacle_state.last_intent_switch_time = next_time_step
             return
 
         if distance_to_conflict > 65.0:
-            obstacle_state.intent = "challenge"
+            if obstacle_state.intent != "challenge":
+                obstacle_state.intent = "challenge"
+                obstacle_state.last_intent_switch_time = next_time_step
             return
 
-        ego_dominant = ego_ttc + 1.8 < obstacle_ttc
-        obstacle_dominant = obstacle_ttc + 0.8 < ego_ttc
+        ego_dominant = ego_ttc + 2.8 < obstacle_ttc
+        obstacle_dominant = obstacle_ttc + 0.4 < ego_ttc
 
         if obstacle_state.intent == "challenge":
-            if ego_dominant or (
-                distance_to_conflict < 30.0 and ego_ttc < obstacle_ttc + 2.2
+            if ego_dominant and (
+                distance_to_conflict < 24.0 or ego_ttc < 3.2
             ):
                 obstacle_state.intent = "yield"
+                obstacle_state.last_intent_switch_time = next_time_step
         else:
             if obstacle_dominant or (
-                distance_to_conflict > 22.0 and ego_ttc > obstacle_ttc + 1.2
+                distance_to_conflict > 14.0 and ego_ttc > obstacle_ttc + 0.4
             ):
                 obstacle_state.intent = "challenge"
+                obstacle_state.last_intent_switch_time = next_time_step
 
     def _select_reference_ego_line(self, ego_agents: List, obstacle_state: _ObstacleIntentState):
         best_agent = None

@@ -417,7 +417,7 @@ class FrenetPlanner(Planner):
         self.N_lane = N_lane
         self.mpc = mpc
         return backup, zPred, state_rec, branch_w
-    
+
     # ============================================================
     # 每个仿真步的主规划逻辑
     # ============================================================
@@ -709,7 +709,6 @@ class FrenetPlanner(Planner):
             # belief = branch_w
             # belief = [1] * 12
             # 基于碰撞/越界/舒适性指标筛选轨迹,返回按成本排序前的有效/无效集合
-            # breakpoint()
             ft_list_valid = sort_frenet_trajectories(
                 ego_state=self.ego_state,
                 fp_list=ft_list,
@@ -739,6 +738,11 @@ class FrenetPlanner(Planner):
                 # 依据 cost 属性升序排序,cost 已综合舒适性/碰撞风险/责任等指标
                 # 把 shared 轨迹按 cost 从小到大排序
                 ft_list_valid.sort(key=lambda fp: fp.cost, reverse=False)
+                if len(ft_list_valid) > 0 and getattr(ft_list_valid[0], "used_risk_fallback", False):
+                    print(
+                        f"[FrenetPlanner] timestep={self.ego_state.time_step}: "
+                        "using max-risk fallback trajectory"
+                    )
 
                 # contingency 阶段的速度范围推算,使用 contingency_parameters 的 t_list
                 max_acceleration = self.p.longitudinal.a_max
@@ -752,7 +756,6 @@ class FrenetPlanner(Planner):
 
                 ft_final_list = []       # 每个 shared 轨迹对应一个 final_plan(字典)
                 ft_all_plans_list = []   # 用于绘图:保存 shared + 所有 contingent 候选
-
                 # 遍历每条共享轨迹,生成不同预测模式下的备选方案
                 for plan in ft_list_valid:
                     final_plan = {}   # 保存该 shared plan 对应的最佳 contingent plans(按 mode_num)
@@ -782,17 +785,12 @@ class FrenetPlanner(Planner):
 
                     # 如果 contingency t_list 第一项不是 0,则需要规划后半段 contingent
                     if t_list[0] != 0:
-                        # 仅当备选规划需要延长时间(t_list[0] > 0)才计算
-                        # 生成 contingent trajectories:以 shared plan 的末状态作为初值
                         ft_contingent_list = calc_frenet_trajectories(
                             c_s=plan.s[-1],
                             c_s_d=plan.s_d[-1],
                             c_s_dd=plan.s_dd[-1],
                             c_d=plan.d[-1],
 
-                            # NOTE: 这里危险:plan.d_d[-1] 在你的 FrenetTrajectory 里存的是“时间域 d_dot”
-                            # 但 calc_frenet_trajectories 里会根据 lat_mode 决定如何解释 c_d_d/c_d_dd
-                            # 若 plan.s_d[-1] 很小,会导致转换问题；建议明确传 d'(s) 还是 d_dot(t)
                             c_d_d=plan.d_d[-1],
                             c_d_dd=plan.d_dd[-1],
                             
@@ -814,17 +812,11 @@ class FrenetPlanner(Planner):
                             n_samples=self.contingency_parameters["n_v_samples"],
                             contin=True
                         )
-                        # 保存所有 contingent candidates(用于绘图/调试)
                         for index in range(len(ft_contingent_list)):
                             ft_all_plans[index] = ft_contingent_list[index]
 
                         ft_all_plans_list.append(ft_all_plans)
 
-                        # we want to calculate the best contingent plan per mode
-                        # ========== 对每个“模式/分支”挑一个最优 contingent ==========
-                        # predictions[1]['pos_list']:推测是 obstacle id=1 的多个模式位置序列
-                        # mode_num 遍历每个模式,sort_frenet_trajectories 用 mode_num 选择对应预测分支
-                        # 针对每一个预测模式(不同障碍路径),挑选最便宜的备选轨迹
                         for mode_num, mode_selection in enumerate(joint_mode_selections):
                             ft_conting_list_valid = sort_frenet_trajectories(
                                 ego_state=self.ego_state,
@@ -840,15 +832,11 @@ class FrenetPlanner(Planner):
                                 dt=self.frenet_parameters["dt"],
                                 sensor_radius=self.sensor_radius,
                                 exec_timer=self.exec_timer,
-                                # start_idx:从 shared horizon 结束处开始评估(避免重复从0开始)
                                 start_idx=int(max(self.frenet_parameters["t_list"]) / self.frenet_parameters["dt"]),
                                 mode_num=mode_selection,
                                 reach_set=(self.reach_set if self.responsibility else None)
                             )
-                            # 按 cost 排序,选最小 cost 的 contingent 作为该 mode 的最优
                             ft_conting_list_valid.sort(key=lambda fp: fp.cost, reverse=False)
-                            # NOTE: 若 ft_conting_list_valid 为空会 IndexError
-                            # 建议:做保护:if not ft_conting_list_valid: continue/用备选
                             if len(ft_conting_list_valid) > 0:
                                 final_plan[mode_num] = ft_conting_list_valid[0]
                     if t_list[0] == 0 or len(joint_mode_selections) == 0:

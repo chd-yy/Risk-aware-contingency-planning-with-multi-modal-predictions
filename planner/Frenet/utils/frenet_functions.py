@@ -1059,6 +1059,17 @@ def sort_frenet_trajectories(
     """
     timer = ExecTimer(timing_enabled=False) if exec_timer is None else exec_timer
 
+    def _calc_risk_fallback_cost(fp):
+        ego_risk_values = list(fp.ego_risk_dict.values()) if isinstance(fp.ego_risk_dict, dict) else []
+        obst_risk_values = list(fp.obst_risk_dict.values()) if isinstance(fp.obst_risk_dict, dict) else []
+
+        total_risk = sum(ego_risk_values) + sum(obst_risk_values)
+        peak_risk = max(ego_risk_values + obst_risk_values) if (ego_risk_values or obst_risk_values) else 0.0
+        terminal_speed = abs(fp.s_d[-1]) if hasattr(fp, "s_d") and len(fp.s_d) > 0 else 0.0
+        final_offset = abs(fp.d[-1]) if hasattr(fp, "d") and len(fp.d) > 0 else 0.0
+
+        return 4.0 * peak_risk + 2.0 * total_risk + 0.5 * terminal_speed + 0.1 * final_offset
+
     # 以每个有效等级做桶
     validity_dict = {key: [] for key in VALIDITY_LEVELS}
 
@@ -1119,10 +1130,20 @@ def sort_frenet_trajectories(
             )
         validity_dict[fp.valid_level].append(fp)
 
-    # 取“存在轨迹的最高有效等级”
-    validity_level = max(
-        [lvl for lvl in VALIDITY_LEVELS if len(validity_dict[lvl])]
-    )
+    if len(validity_dict[10]) == 0:
+        if len(validity_dict[3]) == 0:
+            return []
+
+        ft_list_risk_fallback = validity_dict[3]
+        for fp in ft_list_risk_fallback:
+            fp.cost = _calc_risk_fallback_cost(fp)
+            fp.cost_dict = {"risk_fallback_cost": fp.cost}
+            fp.used_risk_fallback = True
+
+        ft_list_risk_fallback.sort(key=lambda fp: fp.cost, reverse=False)
+        return ft_list_risk_fallback
+
+    validity_level = 10
 
     # 把比最高等级低的全部视为 invalid（并展开）
     ft_list_highest_validity = validity_dict[validity_level]
@@ -1155,6 +1176,7 @@ def sort_frenet_trajectories(
             reach_set=reach_set,
             mode_num=mode_num
         )
+        fp.used_risk_fallback = False
 
     return ft_list_highest_validity
 
