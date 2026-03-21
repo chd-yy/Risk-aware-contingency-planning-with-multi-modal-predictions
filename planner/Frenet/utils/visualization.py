@@ -744,8 +744,8 @@ def draw_all_plans(
 
     if best_traj is not None and len(best_traj) != 0:
         # x and y axis description
-        ax.set_xlabel("x[m]")
-        ax.set_ylabel("y[m]")
+        ax.set_xlabel("x(m)")
+        ax.set_ylabel("y(m)")
 
         # align ego position to the center
         # ax.set_xlim(
@@ -1494,19 +1494,19 @@ def draw_scenario(
                     ax.fill(*obj.exterior.xy, "g", alpha=0.2, zorder=10)
 
     # 标题中显示目标时间范围
-    if planning_problem is not None and hasattr(planning_problem.goal.state_list[0], "time_step"):
-        target_time_string = "Target-time: %.1f s - %.1f s" % (
-            planning_problem.goal.state_list[0].time_step.start * scenario.dt,
-            planning_problem.goal.state_list[0].time_step.end * scenario.dt,
-        )
-    else:
-        target_time_string = "No target-time"
+    # if planning_problem is not None and hasattr(planning_problem.goal.state_list[0], "time_step"):
+    #     target_time_string = "Target-time: %.1f s - %.1f s" % (
+    #         planning_problem.goal.state_list[0].time_step.start * scenario.dt,
+    #         planning_problem.goal.state_list[0].time_step.end * scenario.dt,
+    #     )
+    # else:
+    #     target_time_string = "No target-time"
 
 
     # ax.legend() 当前被注释
     # TODO(yanjun) : 暂时注释掉，正常需要打开
     ax.set_title(
-        "Time: {0:.1f} s".format(time_step * scenario.dt) + "    " + target_time_string
+        "Time: {0:.1f} s".format(time_step * scenario.dt)
     )
 
     # 在目标开始前一帧，把 driven_traj pickle 到文件 "test"

@@ -215,6 +215,12 @@ class FrenetPlanner(Planner):
             "credible_set_sizes": [],
             "alpha": CREDIBLE_SET_ALPHA,
         }
+        self.recoverability_history = {
+            "timesteps": [],
+            "shared_plan_count": [],
+            "recoverable_shared_plan_count": [],
+            "credible_set_size": [],
+        }
 
         self.long_jerk = []  # 纵向 jerk 记录(调试舒适性)
         self.lat_jerk = []  # 横向 jerk 记录
@@ -729,6 +735,17 @@ class FrenetPlanner(Planner):
                 return [uniform_weight] * len(mode_selections)
             inv_weight_sum = 1.0 / weight_sum
             return [weight * inv_weight_sum for weight in joint_weights]
+
+        def _check_recoverability(final_plan, credible_mode_selections, contingency_required):
+            if not contingency_required or len(credible_mode_selections) == 0:
+                return True, []
+
+            missing_modes = [
+                mode_num
+                for mode_num in range(len(credible_mode_selections))
+                if mode_num not in final_plan
+            ]
+            return len(missing_modes) == 0, missing_modes
         # =========================
         # F) 可达集计算(责任相关)
         # =========================
@@ -808,6 +825,7 @@ class FrenetPlanner(Planner):
 
                 ft_final_list = []       # 每个 shared 轨迹对应一个 final_plan(字典)
                 ft_all_plans_list = []   # 用于绘图:保存 shared + 所有 contingent 候选
+                recoverable_shared_plan_count = 0
                 # 遍历每条共享轨迹,生成不同预测模式下的备选方案
                 for plan in ft_list_valid:
                     final_plan = {}   # 保存该 shared plan 对应的最佳 contingent plans(按 mode_num)
@@ -891,10 +909,28 @@ class FrenetPlanner(Planner):
                             ft_conting_list_valid.sort(key=lambda fp: fp.cost, reverse=False)
                             if len(ft_conting_list_valid) > 0:
                                 final_plan[mode_num] = ft_conting_list_valid[0]
-                    if t_list[0] == 0 or len(credible_joint_mode_selections) == 0:
+
+                    recoverable, missing_credible_modes = _check_recoverability(
+                        final_plan=final_plan,
+                        credible_mode_selections=credible_joint_mode_selections,
+                        contingency_required=(t_list[0] != 0),
+                    )
+                    final_plan["recoverable"] = recoverable
+                    final_plan["missing_credible_modes"] = list(missing_credible_modes)
+                    final_plan["credible_set_size"] = len(credible_joint_mode_selections)
+
+                    if recoverable:
+                        recoverable_shared_plan_count += 1
                         ft_final_list.append(final_plan)
-                    elif len(final_plan) == len(credible_joint_mode_selections) + 1:
-                        ft_final_list.append(final_plan)
+
+                self.recoverability_history["timesteps"].append(int(self.ego_state.time_step))
+                self.recoverability_history["shared_plan_count"].append(int(len(ft_list_valid)))
+                self.recoverability_history["recoverable_shared_plan_count"].append(
+                    int(recoverable_shared_plan_count)
+                )
+                self.recoverability_history["credible_set_size"].append(
+                    int(len(credible_joint_mode_selections))
+                )
 
                 # we need to get the belief over the modes to use it as weights in the cost function
                 '''
@@ -1270,52 +1306,48 @@ class FrenetPlanner(Planner):
         joint_timesteps = self.joint_belief_history.get("timesteps", [])
         joint_weight_series = self.joint_belief_history.get("joint_weights", [])
         joint_labels = self.joint_belief_history.get("joint_mode_labels", [])
-        if len(joint_timesteps) == 0 or len(joint_weight_series) == 0:
-            return
+        if len(joint_timesteps) > 0 and len(joint_weight_series) > 0:
+            joint_count = max(len(values) for values in joint_weight_series)
+            if joint_count > 0:
+                fig, ax = plt.subplots(figsize=(12, 6))
+                for joint_idx in range(joint_count):
+                    joint_values = [
+                        values[joint_idx] if joint_idx < len(values) else np.nan
+                        for values in joint_weight_series
+                    ]
+                    label = (
+                        f"joint {joint_idx}: {joint_labels[joint_idx]}"
+                        if joint_idx < len(joint_labels)
+                        else f"joint {joint_idx}"
+                    )
+                    ax.plot(
+                        joint_timesteps,
+                        joint_values,
+                        marker="o",
+                        linewidth=1.5,
+                        label=label,
+                    )
 
-        joint_count = max(len(values) for values in joint_weight_series)
-        if joint_count == 0:
-            return
+                ax.set_xlabel("timestep")
+                ax.set_ylabel("joint belief")
+                ax.set_ylim(0.0, 1.0)
+                ax.set_title("Joint scenario belief evolution")
+                ax.grid(True, alpha=0.3)
 
-        fig, ax = plt.subplots(figsize=(12, 6))
-        for joint_idx in range(joint_count):
-            joint_values = [
-                values[joint_idx] if joint_idx < len(values) else np.nan
-                for values in joint_weight_series
-            ]
-            label = (
-                f"joint {joint_idx}: {joint_labels[joint_idx]}"
-                if joint_idx < len(joint_labels)
-                else f"joint {joint_idx}"
-            )
-            ax.plot(
-                joint_timesteps,
-                joint_values,
-                marker="o",
-                linewidth=1.5,
-                label=label,
-            )
+                if len(joint_labels) > 0:
+                    legend_anchor_x = 1.02
+                    ax.legend(loc="upper left", bbox_to_anchor=(legend_anchor_x, 1.0), fontsize=8)
+                else:
+                    ax.legend()
 
-        ax.set_xlabel("timestep")
-        ax.set_ylabel("joint belief")
-        ax.set_ylim(0.0, 1.0)
-        ax.set_title("Joint scenario belief evolution")
-        ax.grid(True, alpha=0.3)
-
-        if len(joint_labels) > 0:
-            legend_anchor_x = 1.02
-            ax.legend(loc="upper left", bbox_to_anchor=(legend_anchor_x, 1.0), fontsize=8)
-        else:
-            ax.legend()
-
-        fig.tight_layout()
-        fig.savefig(
-            output_path.joinpath(
-                f"{scenario_prefix}joint_belief.png"
-            ),
-            bbox_inches="tight",
-        )
-        plt.close(fig)
+                fig.tight_layout()
+                fig.savefig(
+                    output_path.joinpath(
+                        f"{scenario_prefix}joint_belief.png"
+                    ),
+                    bbox_inches="tight",
+                )
+                plt.close(fig)
 
         credible_timesteps = self.credible_joint_history.get("timesteps", [])
         credible_sizes = self.credible_joint_history.get("credible_set_sizes", [])
@@ -1383,6 +1415,105 @@ class FrenetPlanner(Planner):
                 encoding="utf-8",
             ) as credible_file:
                 json.dump(credible_dump, credible_file, indent=2, ensure_ascii=False)
+
+        recoverability_timesteps = self.recoverability_history.get("timesteps", [])
+        recoverable_counts = self.recoverability_history.get("recoverable_shared_plan_count", [])
+        shared_counts = self.recoverability_history.get("shared_plan_count", [])
+        recoverability_credible_sizes = self.recoverability_history.get("credible_set_size", [])
+        if (
+            len(recoverability_timesteps) > 0
+            and len(shared_counts) == len(recoverability_timesteps)
+            and len(recoverable_counts) == len(recoverability_timesteps)
+        ):
+            recoverability_ratio = []
+            for shared_count, recoverable_count in zip(shared_counts, recoverable_counts):
+                if shared_count <= 0:
+                    recoverability_ratio.append(0.0)
+                else:
+                    recoverability_ratio.append(float(recoverable_count) / float(shared_count))
+
+            fig, ax1 = plt.subplots(figsize=(10, 5))
+            ax1.plot(
+                recoverability_timesteps,
+                shared_counts,
+                marker="o",
+                linewidth=1.5,
+                color="tab:blue",
+                label="shared plan count",
+            )
+            ax1.plot(
+                recoverability_timesteps,
+                recoverable_counts,
+                marker="s",
+                linewidth=1.5,
+                color="tab:green",
+                label="recoverable shared count",
+            )
+            ax1.set_xlabel("timestep")
+            ax1.set_ylabel("plan count")
+            ax1.grid(True, alpha=0.3)
+
+            ax2 = ax1.twinx()
+            ax2.plot(
+                recoverability_timesteps,
+                recoverability_ratio,
+                marker="x",
+                linewidth=1.2,
+                color="tab:red",
+                label="recoverability ratio",
+            )
+            ax2.set_ylabel("recoverability ratio", color="tab:red")
+            ax2.tick_params(axis="y", labelcolor="tab:red")
+            ax2.set_ylim(0.0, 1.05)
+
+            if len(recoverability_credible_sizes) == len(recoverability_timesteps):
+                ax1.plot(
+                    recoverability_timesteps,
+                    recoverability_credible_sizes,
+                    marker="^",
+                    linewidth=1.2,
+                    color="tab:purple",
+                    label="credible set size",
+                )
+
+            lines_1, labels_1 = ax1.get_legend_handles_labels()
+            lines_2, labels_2 = ax2.get_legend_handles_labels()
+            ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc="upper right")
+
+            fig.suptitle("Shared-plan recoverability summary")
+            fig.tight_layout()
+            fig.savefig(
+                output_path.joinpath(
+                    f"{scenario_prefix}recoverability_summary.png"
+                ),
+                bbox_inches="tight",
+            )
+            plt.close(fig)
+
+            recoverability_dump = {"timesteps": []}
+            for idx, timestep in enumerate(recoverability_timesteps):
+                recoverability_dump["timesteps"].append(
+                    {
+                        "time_step": int(timestep),
+                        "shared_plan_count": int(shared_counts[idx]),
+                        "recoverable_shared_plan_count": int(recoverable_counts[idx]),
+                        "recoverability_ratio": float(recoverability_ratio[idx]),
+                        "credible_set_size": (
+                            int(recoverability_credible_sizes[idx])
+                            if idx < len(recoverability_credible_sizes)
+                            else None
+                        ),
+                    }
+                )
+
+            with open(
+                output_path.joinpath(
+                    f"{scenario_prefix}recoverability.json"
+                ),
+                "w",
+                encoding="utf-8",
+            ) as recoverability_file:
+                json.dump(recoverability_dump, recoverability_file, indent=2, ensure_ascii=False)
 
 
 if __name__ == "__main__":
