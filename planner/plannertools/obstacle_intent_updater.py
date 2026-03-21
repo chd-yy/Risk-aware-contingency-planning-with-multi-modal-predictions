@@ -6,6 +6,54 @@ from commonroad.prediction.prediction import Occupancy
 from commonroad.scenario.trajectory import State
 from shapely.geometry import LineString, Point
 
+# emergency 触发阈值(默认):
+# - distance_close: 调大 -> 更早进入近距离 emergency；调小 -> 更晚触发
+# - min_ttc_close: 调大 -> TTC 稍微危险就触发；调小 -> 只有更危险才触发
+# - distance_mid: 调大 -> 中距离阶段更早介入；调小 -> 更晚介入
+# - min_ttc_mid: 调大 -> 中距离更容易触发；调小 -> 更难触发
+# - ttc_gap_mid: 调大 -> 允许更大的 TTC 差也触发；调小 -> 只在双方更接近同时到达时触发
+# - ego_ttc_critical: 调大 -> ego 更早被视为“马上到冲突区”；调小 -> 判定更保守
+# - obstacle_ttc_critical: 调大 -> obstacle 还没特别近也可能触发；调小 -> 只有 obstacle 更接近才触发
+DEFAULT_EMERGENCY_PROFILE = {
+    "distance_close": 8.0,
+    "min_ttc_close": 1.8,
+    "distance_mid": 12.0,
+    "min_ttc_mid": 2.4,
+    "ttc_gap_mid": 1.2,
+    "ego_ttc_critical": 0.9,
+    "obstacle_ttc_critical": 2.0,
+}
+
+OBSTACLE_EMERGENCY_PROFILES = {
+    # 20044 更激进、速度更高，所以阈值整体前移:
+    # - 距离和 TTC 阈值更大，意味着会更早进入 emergency
+    20044: {
+        "distance_close": 15.0,
+        "min_ttc_close": 2.2,
+        "distance_mid": 18.0,
+        "min_ttc_mid": 2.8,
+        "ttc_gap_mid": 1.5,
+        "ego_ttc_critical": 1.3,
+        "obstacle_ttc_critical": 2.0,
+    },
+    # 20087 当前先保持默认风格，但单独列出来，后面可单独手调
+    20087: {
+        "distance_close": 8.0,
+        "min_ttc_close": 1.8,
+        "distance_mid": 12.0,
+        "min_ttc_mid": 2.4,
+        "ttc_gap_mid": 1.2,
+        "ego_ttc_critical": 0.9,
+        "obstacle_ttc_critical": 2.0,
+    },
+}
+
+# 已经过掉冲突点的容差:
+# - 调大 -> 更容易认为“冲突已过去”，更早解除 emergency
+# - 调小 -> 更不容易放过旧冲突点，但也更容易 lingering
+CONFLICT_POINT_PASSED_TOLERANCE_M = 1.0
+NO_CONFLICT_RECOVERY_STEPS = 2
+
 
 def _wrap_to_pi(angle: float) -> float:
     return (angle + np.pi) % (2.0 * np.pi) - np.pi
@@ -129,32 +177,94 @@ def _line_from_xy(x_values: Sequence[float], y_values: Sequence[float]) -> Optio
     return LineString(coords)
 
 
+def _shape_safety_radius(shape) -> float:
+    if shape is None:
+        return 2.5
+
+    radius = getattr(shape, "radius", None)
+    if radius is not None:
+        return float(radius)
+
+    length = getattr(shape, "length", None)
+    width = getattr(shape, "width", None)
+    if length is not None and width is not None:
+        return 0.5 * float(np.hypot(length, width))
+
+    vertices = getattr(shape, "vertices", None)
+    if vertices is not None and len(vertices) > 0:
+        vertices = np.asarray(vertices, dtype=float)
+        center = np.mean(vertices, axis=0)
+        return float(np.max(np.linalg.norm(vertices - center, axis=1)))
+
+    return 2.5
+
+
+def _candidate_points_from_geometry(geometry) -> List[np.ndarray]:
+    if geometry.is_empty:
+        return []
+
+    if geometry.geom_type == "Point":
+        return [np.array([geometry.x, geometry.y], dtype=float)]
+
+    if geometry.geom_type == "MultiPoint":
+        return [np.array([point.x, point.y], dtype=float) for point in geometry.geoms]
+
+    if geometry.geom_type in {"LineString", "LinearRing"}:
+        coords = np.asarray(geometry.coords, dtype=float)
+        if len(coords) == 0:
+            return []
+        return [coords[0], coords[len(coords) // 2], coords[-1]]
+
+    if hasattr(geometry, "geoms"):
+        candidate_points: List[np.ndarray] = []
+        for geom in geometry.geoms:
+            candidate_points.extend(_candidate_points_from_geometry(geom))
+        return candidate_points
+
+    centroid = geometry.centroid
+    return [np.array([centroid.x, centroid.y], dtype=float)]
+
+
 def _extract_conflict_point(
-    obstacle_line: LineString, ego_line: LineString
+    obstacle_line: LineString,
+    ego_line: LineString,
+    obstacle_radius: float = 0.0,
+    ego_radius: float = 0.0,
+    obstacle_current_s: float = 0.0,
 ) -> Optional[np.ndarray]:
-    intersection = obstacle_line.intersection(ego_line)
-    if intersection.is_empty:
+    clearance = max(0.0, float(obstacle_radius) + float(ego_radius))
+    if clearance > 1e-6:
+        intersection = obstacle_line.intersection(
+            ego_line.buffer(clearance, cap_style=2, join_style=2)
+        )
+    else:
+        intersection = obstacle_line.intersection(ego_line)
+
+    candidate_points = _candidate_points_from_geometry(intersection)
+    if len(candidate_points) == 0:
         return None
 
-    if intersection.geom_type == "Point":
-        return np.array([intersection.x, intersection.y], dtype=float)
+    progress_tolerance = max(
+        CONFLICT_POINT_PASSED_TOLERANCE_M,
+        0.25 * max(float(obstacle_radius), 1.0),
+    )
+    filtered_points = []
+    for point in candidate_points:
+        obstacle_progress = obstacle_line.project(Point(float(point[0]), float(point[1])))
+        ego_progress = ego_line.project(Point(float(point[0]), float(point[1])))
+        if obstacle_progress <= obstacle_current_s + progress_tolerance:
+            continue
+        if ego_progress <= 0.5 * max(float(ego_radius), 1.0):
+            continue
+        filtered_points.append(point)
 
-    if intersection.geom_type == "MultiPoint":
-        point = list(intersection.geoms)[0]
-        return np.array([point.x, point.y], dtype=float)
+    if len(filtered_points) == 0:
+        return None
 
-    if intersection.geom_type in {"LineString", "LinearRing"}:
-        coords = np.asarray(intersection.coords, dtype=float)
-        return coords[len(coords) // 2]
-
-    if hasattr(intersection, "geoms") and len(intersection.geoms) > 0:
-        for geom in intersection.geoms:
-            if geom.geom_type == "Point":
-                return np.array([geom.x, geom.y], dtype=float)
-            if geom.geom_type in {"LineString", "LinearRing"}:
-                coords = np.asarray(geom.coords, dtype=float)
-                return coords[len(coords) // 2]
-    return None
+    return min(
+        filtered_points,
+        key=lambda point: obstacle_line.project(Point(float(point[0]), float(point[1]))),
+    )
 
 
 @dataclass
@@ -170,6 +280,8 @@ class _ObstacleIntentState:
     cruise_speed: float
     challenge_speed: float
     last_state: State
+    emergency_brake: bool = False
+    no_conflict_steps: int = 0
 
 
 class YieldChallengeUpdater:
@@ -177,6 +289,7 @@ class YieldChallengeUpdater:
         self.ego_ids = set(ego_ids)
         self.dt = float(dt)
         self.obstacle_states: Dict[int, _ObstacleIntentState] = {}
+        self.debug_obstacle_ids = {20044, 20087}
 
         for obstacle in scenario.dynamic_obstacles:
             if obstacle.obstacle_id in self.ego_ids:
@@ -237,6 +350,7 @@ class YieldChallengeUpdater:
 
             if obstacle.obstacle_id in self.obstacle_states:
                 self.obstacle_states[obstacle.obstacle_id].intent = "challenge"
+                self.obstacle_states[obstacle.obstacle_id].emergency_brake = False
                 self.obstacle_states[obstacle.obstacle_id].last_intent_switch_time = int(initial_state.time_step)
                 self.obstacle_states[obstacle.obstacle_id].current_s = float(
                     self.obstacle_states[obstacle.obstacle_id].path_line.project(
@@ -262,18 +376,30 @@ class YieldChallengeUpdater:
                 continue
 
             obstacle_state = self.obstacle_states[obstacle_id]
-            ego_line, ego_speed = self._select_reference_ego_line(
+            obstacle_state.emergency_brake = False
+            ego_agent, ego_line, ego_speed = self._select_reference_ego_line(
                 ego_agents=ego_agents, obstacle_state=obstacle_state
             )
 
             desired_speed = obstacle_state.cruise_speed
             conflict_point = None
             if ego_line is not None:
-                conflict_point = _extract_conflict_point(
-                    obstacle_line=obstacle_state.path_line, ego_line=ego_line
+                ego_radius = _shape_safety_radius(
+                    getattr(ego_agent, "agent_shape", None)
                 )
+                obstacle_radius = _shape_safety_radius(obstacle.obstacle_shape)
+                conflict_point = _extract_conflict_point(
+                    obstacle_line=obstacle_state.path_line,
+                    ego_line=ego_line,
+                    obstacle_radius=obstacle_radius,
+                    ego_radius=ego_radius,
+                    obstacle_current_s=obstacle_state.current_s,
+                )
+            else:
+                obstacle_state.emergency_brake = False
 
             if conflict_point is not None:
+                obstacle_state.no_conflict_steps = 0
                 obstacle_ttc, distance_to_conflict = self._compute_obstacle_ttc(
                     obstacle_state=obstacle_state, conflict_point=conflict_point
                 )
@@ -290,7 +416,14 @@ class YieldChallengeUpdater:
                     next_time_step=next_time_step,
                 )
 
-                if obstacle_state.intent == "yield":
+                if obstacle_state.emergency_brake:
+                    desired_speed = self._emergency_yield_speed(
+                        obstacle_state=obstacle_state,
+                        distance_to_conflict=distance_to_conflict,
+                        obstacle_ttc=obstacle_ttc,
+                        ego_ttc=ego_ttc,
+                    )
+                elif obstacle_state.intent == "yield":
                     desired_speed = self._yield_speed(
                         obstacle_state=obstacle_state,
                         distance_to_conflict=distance_to_conflict,
@@ -304,6 +437,45 @@ class YieldChallengeUpdater:
                         obstacle_ttc=obstacle_ttc,
                         ego_ttc=ego_ttc,
                     )
+
+                # if obstacle_id in self.debug_obstacle_ids:
+                #     print(
+                #         "[ObstacleDebug] "
+                #         f"t={next_time_step} id={obstacle_id} "
+                #         f"intent={obstacle_state.intent} "
+                #         f"emergency={obstacle_state.emergency_brake} "
+                #         f"curr_v={obstacle_state.current_speed:.2f} "
+                #         f"des_v={desired_speed:.2f} "
+                #         f"dist_conf={distance_to_conflict:.2f} "
+                #         f"obs_ttc={obstacle_ttc:.2f} "
+                #         f"ego_ttc={ego_ttc:.2f} "
+                #         f"conflict=({float(conflict_point[0]):.2f},{float(conflict_point[1]):.2f})"
+                #     )
+            elif obstacle_id in self.debug_obstacle_ids:
+                obstacle_state.no_conflict_steps += 1
+                if (
+                    obstacle_state.intent == "yield"
+                    and obstacle_state.no_conflict_steps >= NO_CONFLICT_RECOVERY_STEPS
+                ):
+                    obstacle_state.intent = "challenge"
+                    obstacle_state.last_intent_switch_time = next_time_step
+                # print(
+                #     "[ObstacleDebug_no_conflict_point] "
+                #     f"t={next_time_step} id={obstacle_id} "
+                #     f"intent={obstacle_state.intent} "
+                #     f"emergency={obstacle_state.emergency_brake} "
+                #     f"curr_v={obstacle_state.current_speed:.2f} "
+                #     f"des_v={desired_speed:.2f} "
+                #     "conflict=None"
+                # )
+            else:
+                obstacle_state.no_conflict_steps += 1
+                if (
+                    obstacle_state.intent == "yield"
+                    and obstacle_state.no_conflict_steps >= NO_CONFLICT_RECOVERY_STEPS
+                ):
+                    obstacle_state.intent = "challenge"
+                    obstacle_state.last_intent_switch_time = next_time_step
 
             updated_state = self._propagate_state(
                 obstacle_state=obstacle_state,
@@ -327,6 +499,16 @@ class YieldChallengeUpdater:
         ego_ttc: float,
         next_time_step: int,
     ):
+        if self._should_emergency_yield(
+            obstacle_state=obstacle_state,
+            distance_to_conflict=distance_to_conflict,
+            obstacle_ttc=obstacle_ttc,
+            ego_ttc=ego_ttc,
+        ):
+            obstacle_state.emergency_brake = True
+            return
+
+        obstacle_state.emergency_brake = False
         hold_steps = 6
         if next_time_step - obstacle_state.last_intent_switch_time < hold_steps:
             return
@@ -359,6 +541,37 @@ class YieldChallengeUpdater:
                 obstacle_state.intent = "challenge"
                 obstacle_state.last_intent_switch_time = next_time_step
 
+    def _should_emergency_yield(
+        self,
+        obstacle_state: _ObstacleIntentState,
+        distance_to_conflict: float,
+        obstacle_ttc: float,
+        ego_ttc: float,
+    ) -> bool:
+        if not np.isfinite(ego_ttc):
+            return False
+
+        profile = dict(DEFAULT_EMERGENCY_PROFILE)
+        profile.update(OBSTACLE_EMERGENCY_PROFILES.get(obstacle_state.obstacle_id, {}))
+        distance_close = profile["distance_close"]
+        min_ttc_close = profile["min_ttc_close"]
+        distance_mid = profile["distance_mid"]
+        min_ttc_mid = profile["min_ttc_mid"]
+        ttc_gap_mid = profile["ttc_gap_mid"]
+        ego_ttc_critical = profile["ego_ttc_critical"]
+        obstacle_ttc_critical = profile["obstacle_ttc_critical"]
+
+        min_ttc = min(obstacle_ttc, ego_ttc)
+        ttc_gap = abs(obstacle_ttc - ego_ttc)
+
+        if distance_to_conflict < distance_close and min_ttc < min_ttc_close:
+            return True
+        if distance_to_conflict < distance_mid and min_ttc < min_ttc_mid and ttc_gap < ttc_gap_mid:
+            return True
+        if ego_ttc < ego_ttc_critical and obstacle_ttc < obstacle_ttc_critical:
+            return True
+        return False
+
     def _select_reference_ego_line(self, ego_agents: List, obstacle_state: _ObstacleIntentState):
         best_agent = None
         best_distance = float("inf")
@@ -372,7 +585,7 @@ class YieldChallengeUpdater:
                 best_agent = ego_agent
 
         if best_agent is None:
-            return None, 0.0
+            return None, None, 0.0
 
         if getattr(best_agent.planner, "trajectory", None) is not None:
             ego_line = _line_from_xy(
@@ -380,12 +593,12 @@ class YieldChallengeUpdater:
                 best_agent.planner.trajectory.get("y_m"),
             )
             if ego_line is not None:
-                return ego_line, float(max(0.1, best_agent.state.velocity))
+                return best_agent, ego_line, float(max(0.1, best_agent.state.velocity))
 
         heading = float(getattr(best_agent.state, "orientation", 0.0))
         start = np.asarray(best_agent.state.position, dtype=float)
         end = start + 80.0 * np.array([np.cos(heading), np.sin(heading)])
-        return LineString([start, end]), float(max(0.1, best_agent.state.velocity))
+        return best_agent, LineString([start, end]), float(max(0.1, best_agent.state.velocity))
 
     def _compute_obstacle_ttc(self, obstacle_state: _ObstacleIntentState, conflict_point: np.ndarray):
         conflict_s = float(
@@ -393,7 +606,9 @@ class YieldChallengeUpdater:
                 Point(float(conflict_point[0]), float(conflict_point[1]))
             )
         )
-        distance_to_conflict = max(0.0, conflict_s - obstacle_state.current_s)
+        distance_to_conflict = conflict_s - obstacle_state.current_s
+        if distance_to_conflict <= CONFLICT_POINT_PASSED_TOLERANCE_M:
+            return float("inf"), float("inf")
         obstacle_ttc = distance_to_conflict / max(0.1, obstacle_state.current_speed)
         return obstacle_ttc, distance_to_conflict
 
@@ -441,6 +656,21 @@ class YieldChallengeUpdater:
             )
         return obstacle_state.cruise_speed
 
+    def _emergency_yield_speed(
+        self,
+        obstacle_state: _ObstacleIntentState,
+        distance_to_conflict: float,
+        obstacle_ttc: float,
+        ego_ttc: float,
+    ) -> float:
+        min_speed = 1.0
+        if distance_to_conflict < 5.0 or min(obstacle_ttc, ego_ttc) < 0.8:
+            return min_speed
+
+        stop_distance = max(0.0, distance_to_conflict - 4.0)
+        target_speed = float(np.sqrt(max(0.0, 2.0 * 3.0 * stop_distance)))
+        return max(min_speed, min(obstacle_state.current_speed, target_speed, 3.0))
+
     def _challenge_speed(
         self,
         obstacle_state: _ObstacleIntentState,
@@ -463,10 +693,11 @@ class YieldChallengeUpdater:
         next_time_step: int,
     ) -> State:
         max_acc = 3.5 if obstacle_state.intent == "challenge" else 1.5
-        max_dec = 3.5
+        max_dec = 4.0 if obstacle_state.emergency_brake else 3.5
         speed_error = desired_speed - obstacle_state.current_speed
         acceleration = float(np.clip(speed_error / self.dt, -max_dec, max_acc))
-        next_speed = float(max(0.0, obstacle_state.current_speed + acceleration * self.dt))
+        min_speed = 1.0 if obstacle_state.emergency_brake else 0.0
+        next_speed = float(max(min_speed, obstacle_state.current_speed + acceleration * self.dt))
         travelled_distance = max(
             0.0,
             obstacle_state.current_speed * self.dt + 0.5 * acceleration * self.dt * self.dt,
