@@ -135,6 +135,7 @@ def check_validity(
         - "collision"
         - "boundaries"
         - "max_risk"
+        - "trajectory_collision_prob_upper_bound"
         - ""（有效时）
     """
     validity_level, reason = check_validity_basic(
@@ -225,6 +226,12 @@ def check_risk_validity(
     ):
         if not max_risk_valid(ft, risk_params, mode):
             return 3, "max_risk"
+
+    with timer.time_with_cm(
+        "simulation/sort trajectories/check validity/check trajectory collision upper bound"
+    ):
+        if not trajectory_collision_prob_upper_bound_valid(ft, risk_params):
+            return 3, "trajectory_collision_prob_upper_bound"
 
     return 10, ""
 
@@ -475,3 +482,15 @@ def max_risk_valid(ft, risk_params, mode):
                 return False
 
     return True
+
+
+def trajectory_collision_prob_upper_bound_valid(ft, risk_params):
+    max_bound = risk_params.get("max_acceptable_trajectory_collision_prob_upper_bound")
+    if max_bound is None:
+        return True
+
+    trajectory_bound = getattr(ft, "trajectory_collision_prob_upper_bound", None)
+    if trajectory_bound is None:
+        return True
+
+    return float(trajectory_bound) <= float(max_bound)

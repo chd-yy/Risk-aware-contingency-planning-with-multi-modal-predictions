@@ -7,6 +7,7 @@
   "reduced_angle_areas": true,
   "trajectory_risk": "max",
   "max_acceptable_risk": 0.05,
+  "max_acceptable_trajectory_collision_prob_upper_bound": 0.20,
   "multiple_cost_functions": false,
 
   "scale_factor_time": 0.9,

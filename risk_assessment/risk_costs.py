@@ -154,6 +154,8 @@ def calc_risk(
     ego_harm_max = {}   # ego最大伤害
     obst_risk_max = {}  # 障碍车最大风险
     obst_harm_max = {}  # 障碍车最大伤害
+    trajectory_collision_prob_upper_bound = 0.0
+    obstacle_collision_prob_upper_bound = {}
 
     # ---------------------------------------------------------
     # Step 4：遍历每个障碍物
@@ -276,6 +278,14 @@ def calc_risk(
         ego_harm_max[key] = max(max(row) for row in ego_harm_traj_list)
         obst_harm_max[key] = max(max(row) for row in obst_harm_traj_list)
         obst_risk_max[key] = max(max(row) for row in obst_risk_traj_list)
+        obstacle_collision_prob_upper_bound[key] = min(
+            1.0,
+            sum(
+                sum(value for value in mode_values if value is not None)
+                for mode_values in ego_risk_traj_list
+            ),
+        )
+        trajectory_collision_prob_upper_bound += obstacle_collision_prob_upper_bound[key]
 
         
         # print("\n[AFTER ASSIGN]")
@@ -320,6 +330,11 @@ def calc_risk(
     # ---------------------------------------------------------
     # 返回风险结果
     # ---------------------------------------------------------
+    traj.trajectory_collision_prob_upper_bound = min(
+        1.0, trajectory_collision_prob_upper_bound
+    )
+    traj.obstacle_collision_prob_upper_bound = obstacle_collision_prob_upper_bound
+
     return ego_risk_max, obst_risk_max, ego_harm_max, obst_harm_max, boundary_harm
 
 
