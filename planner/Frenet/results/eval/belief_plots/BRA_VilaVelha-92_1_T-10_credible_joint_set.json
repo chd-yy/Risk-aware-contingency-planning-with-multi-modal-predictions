@@ -1,0 +1,959 @@
+{
+  "alpha": 0.05,
+  "timesteps": [
+    {
+      "time_step": 0,
+      "credible_indices": [
+        3,
+        2,
+        1
+      ],
+      "credible_weights": [
+        0.6893983594304509,
+        0.15036536923707391,
+        0.13154488436067757
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=challenge, 20087=yield",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9713086130282024,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 1,
+      "credible_indices": [
+        3,
+        2,
+        1
+      ],
+      "credible_weights": [
+        0.853917852743851,
+        0.09132417634848185,
+        0.04946755169465488
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=challenge, 20087=yield",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9947095807869878,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 2,
+      "credible_indices": [
+        3,
+        2
+      ],
+      "credible_weights": [
+        0.877856450625437,
+        0.07791294134765286
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9557693919730899,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 3,
+      "credible_indices": [
+        3,
+        2
+      ],
+      "credible_weights": [
+        0.8805141159352178,
+        0.07547013784879247
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9559842537840102,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 4,
+      "credible_indices": [
+        3,
+        2
+      ],
+      "credible_weights": [
+        0.8809323282986632,
+        0.07505627087275357
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9559885991714168,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 5,
+      "credible_indices": [
+        3,
+        2
+      ],
+      "credible_weights": [
+        0.8810019958464892,
+        0.07498669119017028
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9559886870366595,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 6,
+      "credible_indices": [
+        3,
+        2
+      ],
+      "credible_weights": [
+        0.8810136837360532,
+        0.07497500507726547
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9559886888133187,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 7,
+      "credible_indices": [
+        3,
+        2
+      ],
+      "credible_weights": [
+        0.8810156462207995,
+        0.07497304262844365
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9559886888492432,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 8,
+      "credible_indices": [
+        3,
+        2
+      ],
+      "credible_weights": [
+        0.8846497004052392,
+        0.07528193584411051
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9599316362493496,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 9,
+      "credible_indices": [
+        3,
+        2
+      ],
+      "credible_weights": [
+        0.9054121317140422,
+        0.054520864499923126
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9599329962139653,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 10,
+      "credible_indices": [
+        3,
+        2
+      ],
+      "credible_weights": [
+        0.9165690911255802,
+        0.04336390555584959
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9599329966814297,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 11,
+      "credible_indices": [
+        3,
+        2
+      ],
+      "credible_weights": [
+        0.9161238186870208,
+        0.04264706277880271
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9587708814658235,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 12,
+      "credible_indices": [
+        2,
+        3,
+        0
+      ],
+      "credible_weights": [
+        0.6075486822348746,
+        0.3201134232601608,
+        0.04737586263554871
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=yield",
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9750379681305841,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 13,
+      "credible_indices": [
+        3,
+        1,
+        2,
+        0
+      ],
+      "credible_weights": [
+        0.42748181745090175,
+        0.3309079145958028,
+        0.13618854804473216,
+        0.10542171990856344
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield",
+        "20044=yield, 20087=yield"
+      ],
+      "credible_cumulative_prob": 1.0000000000000002,
+      "credible_set_size": 4
+    },
+    {
+      "time_step": 14,
+      "credible_indices": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "credible_weights": [
+        0.42629582784563846,
+        0.3017568995477641,
+        0.15923295572457938,
+        0.11271431688201793
+      ],
+      "credible_labels": [
+        "20044=yield, 20087=yield",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield",
+        "20044=challenge, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9999999999999999,
+      "credible_set_size": 4
+    },
+    {
+      "time_step": 15,
+      "credible_indices": [
+        0,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.6721411510339322,
+        0.17360048566200115,
+        0.12259464281889527
+      ],
+      "credible_labels": [
+        "20044=yield, 20087=yield",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9683362795148287,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 16,
+      "credible_indices": [
+        0,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.7631886104788613,
+        0.11774156919936526,
+        0.10315542913348114
+      ],
+      "credible_labels": [
+        "20044=yield, 20087=yield",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9840856088117078,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 17,
+      "credible_indices": [
+        0,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.7894418719275403,
+        0.10101470369126309,
+        0.09711665719437106
+      ],
+      "credible_labels": [
+        "20044=yield, 20087=yield",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9875732328131744,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 18,
+      "credible_indices": [
+        0,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.7964726907699136,
+        0.09649200309609082,
+        0.09546928212227548
+      ],
+      "credible_labels": [
+        "20044=yield, 20087=yield",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9884339759882799,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 19,
+      "credible_indices": [
+        0,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.798318357769194,
+        0.09530179687699633,
+        0.09503476729015607
+      ],
+      "credible_labels": [
+        "20044=yield, 20087=yield",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9886549219363464,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 20,
+      "credible_indices": [
+        0,
+        1
+      ],
+      "credible_weights": [
+        0.8558997307872281,
+        0.10178087223713311
+      ],
+      "credible_labels": [
+        "20044=yield, 20087=yield",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9576806030243612,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 21,
+      "credible_indices": [
+        0,
+        1
+      ],
+      "credible_weights": [
+        0.8619791764132234,
+        0.09747122609695297
+      ],
+      "credible_labels": [
+        "20044=yield, 20087=yield",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9594504025101764,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 22,
+      "credible_indices": [
+        0,
+        1
+      ],
+      "credible_weights": [
+        0.8923110985829598,
+        0.0675581252447048
+      ],
+      "credible_labels": [
+        "20044=yield, 20087=yield",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9598692238276646,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 23,
+      "credible_indices": [
+        0,
+        1
+      ],
+      "credible_weights": [
+        0.8854702104036417,
+        0.07439929382699217
+      ],
+      "credible_labels": [
+        "20044=yield, 20087=yield",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9598695042306339,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 24,
+      "credible_indices": [
+        0,
+        1
+      ],
+      "credible_weights": [
+        0.5777135620577047,
+        0.3821559423605922
+      ],
+      "credible_labels": [
+        "20044=yield, 20087=yield",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.959869504418297,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 25,
+      "credible_indices": [
+        1,
+        3,
+        0
+      ],
+      "credible_weights": [
+        0.8382395468096152,
+        0.08820391574238179,
+        0.06655343915478051
+      ],
+      "credible_labels": [
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9929969017067776,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 26,
+      "credible_indices": [
+        3,
+        1
+      ],
+      "credible_weights": [
+        0.5624836943936318,
+        0.3928922451230232
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.955375939516655,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 27,
+      "credible_indices": [
+        3,
+        1
+      ],
+      "credible_weights": [
+        0.9016152856161153,
+        0.05436100684205274
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.955976292458168,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 28,
+      "credible_indices": [
+        3,
+        1
+      ],
+      "credible_weights": [
+        0.9136629440649395,
+        0.042325494124024914
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9559884381889644,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 29,
+      "credible_indices": [
+        3,
+        1
+      ],
+      "credible_weights": [
+        0.9139092881118246,
+        0.04207939566972526
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9559886837815499,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 30,
+      "credible_indices": [
+        3,
+        1
+      ],
+      "credible_weights": [
+        0.9139142703866101,
+        0.042074418360889265
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9559886887474993,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 31,
+      "credible_indices": [
+        3,
+        1
+      ],
+      "credible_weights": [
+        0.9139143711300136,
+        0.042074317717898685
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9559886888479123,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 32,
+      "credible_indices": [
+        3,
+        1
+      ],
+      "credible_weights": [
+        0.913567415412654,
+        0.04242127343728871
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9559886888499427,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 33,
+      "credible_indices": [
+        3,
+        1
+      ],
+      "credible_weights": [
+        0.9040740214815729,
+        0.05191466736841074
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.9559886888499837,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 34,
+      "credible_indices": [
+        3,
+        1
+      ],
+      "credible_weights": [
+        0.8838516383080761,
+        0.07108724946578993
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge"
+      ],
+      "credible_cumulative_prob": 0.954938887773866,
+      "credible_set_size": 2
+    },
+    {
+      "time_step": 35,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8688703695823506,
+        0.07325730634177047,
+        0.05337232828775153
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9955000042118726,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 36,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8525405774081194,
+        0.0724370934154462,
+        0.06914716090133514
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9941248317249007,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 37,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8498444919652559,
+        0.07230120474738613,
+        0.07175010528208502
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.993895801994727,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 38,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8493930268076147,
+        0.07227843667145098,
+        0.07218593105811012
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938573945371758,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 39,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8493172499227222,
+        0.07227461475453205,
+        0.07225908172182526
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938509463990794,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 40,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8493045260117752,
+        0.07227397299513674,
+        0.07227136462258885
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938498636295008,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 41,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8493023893623839,
+        0.07227386522806714,
+        0.07227342721485017
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938496818053012,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 42,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8493020305637863,
+        0.07227384713118545,
+        0.07227377357731667
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938496512722884,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 43,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8493019703121254,
+        0.07227384409224585,
+        0.0722738317406253
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938496461449966,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 44,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8493019601942938,
+        0.07227384358192841,
+        0.07227384150776786
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938496452839901,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 45,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.849301958495245,
+        0.07227384349623264,
+        0.07227384314792679
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938496451394045,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 46,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8493019582099303,
+        0.07227384348184207,
+        0.07227384342335247
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938496451151249,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 47,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8493019581620183,
+        0.07227384347942561,
+        0.07227384346960365
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938496451110476,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 48,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8493019581539725,
+        0.07227384347901986,
+        0.07227384347737047
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938496451103628,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 49,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8493019581526638,
+        0.07227384347890932,
+        0.07227384347867832
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938496451102514,
+      "credible_set_size": 3
+    },
+    {
+      "time_step": 50,
+      "credible_indices": [
+        3,
+        1,
+        2
+      ],
+      "credible_weights": [
+        0.8493019581524022,
+        0.07227384347893291,
+        0.07227384347889426
+      ],
+      "credible_labels": [
+        "20044=challenge, 20087=challenge",
+        "20044=yield, 20087=challenge",
+        "20044=challenge, 20087=yield"
+      ],
+      "credible_cumulative_prob": 0.9938496451102294,
+      "credible_set_size": 3
+    }
+  ]
+}

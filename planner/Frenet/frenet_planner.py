@@ -134,6 +134,8 @@ from beliefplanning.risk_assessment.visualization.risk_visualization import (
 )
 from beliefplanning.risk_assessment.visualization.risk_dashboard import risk_dashboard
 
+CREDIBLE_SET_ALPHA = 0.05
+
 
 class FrenetPlanner(Planner):
     """
@@ -203,6 +205,15 @@ class FrenetPlanner(Planner):
             "joint_weights": [],
             "joint_mode_selections": [],
             "joint_mode_labels": [],
+        }
+        self.credible_joint_history = {
+            "timesteps": [],
+            "credible_indices": [],
+            "credible_weights": [],
+            "credible_labels": [],
+            "credible_cumulative_prob": [],
+            "credible_set_sizes": [],
+            "alpha": CREDIBLE_SET_ALPHA,
         }
 
         self.long_jerk = []  # 纵向 jerk 记录(调试舒适性)
@@ -564,6 +575,8 @@ class FrenetPlanner(Planner):
         base_predictions = None
         prediction_belief = None
         joint_mode_selections = []
+        credible_joint_mode_selections = []
+        credible_joint_mode_weights = [1.0]
 
         with self.exec_timer.time_with_cm("simulation/prediction"):
             visible_obstacle_ids = get_obstacles_in_radius(
@@ -665,6 +678,32 @@ class FrenetPlanner(Planner):
                         joint_mode_selections=joint_mode_selections,
                         predictions=predictions,
                     )
+                    if len(joint_mode_selections) > 0:
+                        joint_mode_weights_all = self._compute_joint_mode_weights(
+                            mode_belief=prediction_belief,
+                            mode_selections=joint_mode_selections,
+                        )
+                        credible_joint_set = self._compute_credible_joint_set(
+                            joint_weights=joint_mode_weights_all,
+                            joint_labels=[
+                                self._format_joint_mode_label(
+                                    mode_selection=mode_selection,
+                                    predictions=predictions,
+                                )
+                                for mode_selection in joint_mode_selections
+                            ],
+                            alpha=CREDIBLE_SET_ALPHA,
+                        )
+                        credible_joint_mode_selections = [
+                            joint_mode_selections[idx]
+                            for idx in credible_joint_set["indices"]
+                        ]
+                        credible_joint_mode_weights = list(
+                            credible_joint_set["weights"]
+                        )
+                    else:
+                        credible_joint_mode_selections = []
+                        credible_joint_mode_weights = [1.0]
 
         def _get_joint_mode_weights(mode_belief, mode_selections):
             if not mode_selections:
@@ -830,7 +869,7 @@ class FrenetPlanner(Planner):
 
                         ft_all_plans_list.append(ft_all_plans)
 
-                        for mode_num, mode_selection in enumerate(joint_mode_selections):
+                        for mode_num, mode_selection in enumerate(credible_joint_mode_selections):
                             ft_conting_list_valid = sort_frenet_trajectories(
                                 ego_state=self.ego_state,
                                 fp_list=ft_contingent_list,
@@ -852,9 +891,9 @@ class FrenetPlanner(Planner):
                             ft_conting_list_valid.sort(key=lambda fp: fp.cost, reverse=False)
                             if len(ft_conting_list_valid) > 0:
                                 final_plan[mode_num] = ft_conting_list_valid[0]
-                    if t_list[0] == 0 or len(joint_mode_selections) == 0:
+                    if t_list[0] == 0 or len(credible_joint_mode_selections) == 0:
                         ft_final_list.append(final_plan)
-                    elif len(final_plan) == len(joint_mode_selections) + 1:
+                    elif len(final_plan) == len(credible_joint_mode_selections) + 1:
                         ft_final_list.append(final_plan)
 
                 # we need to get the belief over the modes to use it as weights in the cost function
@@ -876,13 +915,8 @@ class FrenetPlanner(Planner):
                     #     # 只有 shared_plan,没有 contingent(例如 t_list[0]==0 或没算 contingent)
                     #     plan['cost'] = plan['shared_plan'].cost
                     # else:
-                    dynamic_mode_weights = _get_joint_mode_weights(
-                        mode_belief=belief,
-                        mode_selections=joint_mode_selections,
-                    )
-
                     plan['cost'] = plan['shared_plan'].cost
-                    for mode_num, mode_weight in enumerate(dynamic_mode_weights):
+                    for mode_num, mode_weight in enumerate(credible_joint_mode_weights):
                         if mode_num in plan:
                             plan['cost'] += mode_weight * plan[mode_num].cost
 
@@ -1123,6 +1157,65 @@ class FrenetPlanner(Planner):
             dict(selection) for selection in joint_mode_selections
         ]
         self.joint_belief_history["joint_mode_labels"] = list(joint_labels)
+        credible_set = self._compute_credible_joint_set(
+            joint_weights=joint_weights,
+            joint_labels=joint_labels,
+            alpha=CREDIBLE_SET_ALPHA,
+        )
+        self.credible_joint_history["timesteps"].append(int(time_step))
+        self.credible_joint_history["credible_indices"].append(
+            list(credible_set["indices"])
+        )
+        self.credible_joint_history["credible_weights"].append(
+            list(credible_set["weights"])
+        )
+        self.credible_joint_history["credible_labels"].append(
+            list(credible_set["labels"])
+        )
+        self.credible_joint_history["credible_cumulative_prob"].append(
+            float(credible_set["cumulative_prob"])
+        )
+        self.credible_joint_history["credible_set_sizes"].append(
+            int(len(credible_set["indices"]))
+        )
+
+    def _compute_credible_joint_set(self, joint_weights, joint_labels, alpha=0.05):
+        if joint_weights is None or len(joint_weights) == 0:
+            return {
+                "indices": [],
+                "weights": [],
+                "labels": [],
+                "cumulative_prob": 0.0,
+            }
+
+        target_mass = max(0.0, min(1.0, 1.0 - float(alpha)))
+        ranked_indices = sorted(
+            range(len(joint_weights)),
+            key=lambda idx: joint_weights[idx],
+            reverse=True,
+        )
+
+        cumulative_prob = 0.0
+        credible_indices = []
+        credible_weights = []
+        credible_labels = []
+        for idx in ranked_indices:
+            weight = float(joint_weights[idx])
+            credible_indices.append(idx)
+            credible_weights.append(weight)
+            credible_labels.append(
+                joint_labels[idx] if idx < len(joint_labels) else f"joint {idx}"
+            )
+            cumulative_prob += weight
+            if cumulative_prob >= target_mass:
+                break
+
+        return {
+            "indices": credible_indices,
+            "weights": credible_weights,
+            "labels": credible_labels,
+            "cumulative_prob": cumulative_prob,
+        }
 
     def save_obstacle_belief_plots(self, output_dir, scenario_name=None):
         if len(self.obstacle_belief_history) == 0:
@@ -1223,6 +1316,73 @@ class FrenetPlanner(Planner):
             bbox_inches="tight",
         )
         plt.close(fig)
+
+        credible_timesteps = self.credible_joint_history.get("timesteps", [])
+        credible_sizes = self.credible_joint_history.get("credible_set_sizes", [])
+        credible_probs = self.credible_joint_history.get("credible_cumulative_prob", [])
+        if len(credible_timesteps) > 0 and len(credible_sizes) > 0:
+            fig, ax1 = plt.subplots(figsize=(10, 5))
+            ax1.plot(
+                credible_timesteps,
+                credible_sizes,
+                marker="o",
+                linewidth=1.5,
+                color="tab:blue",
+                label="credible set size",
+            )
+            ax1.set_xlabel("timestep")
+            ax1.set_ylabel("credible set size", color="tab:blue")
+            ax1.tick_params(axis="y", labelcolor="tab:blue")
+            ax1.grid(True, alpha=0.3)
+
+            ax2 = ax1.twinx()
+            ax2.plot(
+                credible_timesteps,
+                credible_probs,
+                marker="x",
+                linewidth=1.2,
+                color="tab:red",
+                label="credible cumulative prob",
+            )
+            ax2.set_ylabel("cumulative prob", color="tab:red")
+            ax2.tick_params(axis="y", labelcolor="tab:red")
+            ax2.set_ylim(0.0, 1.05)
+
+            fig.suptitle(
+                f"Credible joint scenario set (1-a, a={self.credible_joint_history['alpha']:.2f})"
+            )
+            fig.tight_layout()
+            fig.savefig(
+                output_path.joinpath(
+                    f"{scenario_prefix}credible_joint_set_summary.png"
+                ),
+                bbox_inches="tight",
+            )
+            plt.close(fig)
+
+            credible_dump = {
+                "alpha": self.credible_joint_history["alpha"],
+                "timesteps": [],
+            }
+            for idx, timestep in enumerate(credible_timesteps):
+                credible_dump["timesteps"].append(
+                    {
+                        "time_step": int(timestep),
+                        "credible_indices": self.credible_joint_history["credible_indices"][idx],
+                        "credible_weights": self.credible_joint_history["credible_weights"][idx],
+                        "credible_labels": self.credible_joint_history["credible_labels"][idx],
+                        "credible_cumulative_prob": self.credible_joint_history["credible_cumulative_prob"][idx],
+                        "credible_set_size": self.credible_joint_history["credible_set_sizes"][idx],
+                    }
+                )
+            with open(
+                output_path.joinpath(
+                    f"{scenario_prefix}credible_joint_set.json"
+                ),
+                "w",
+                encoding="utf-8",
+            ) as credible_file:
+                json.dump(credible_dump, credible_file, indent=2, ensure_ascii=False)
 
 
 if __name__ == "__main__":
