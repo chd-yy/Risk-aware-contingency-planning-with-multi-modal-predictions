@@ -198,6 +198,12 @@ class FrenetPlanner(Planner):
         self.branch_w_rec = []
         self.obstacle_belief_history = {}
         self.obstacle_mode_belief = {}
+        self.joint_belief_history = {
+            "timesteps": [],
+            "joint_weights": [],
+            "joint_mode_selections": [],
+            "joint_mode_labels": [],
+        }
 
         self.long_jerk = []  # 纵向 jerk 记录(调试舒适性)
         self.lat_jerk = []  # 横向 jerk 记录
@@ -579,6 +585,7 @@ class FrenetPlanner(Planner):
             ]
 
             if self.prediction is not None:
+                # breakpoint()
                 base_predictions = {
                     obstacle_id: self.prediction[obstacle_id]
                     for obstacle_id in visible_dynamic_obstacle_ids
@@ -650,6 +657,12 @@ class FrenetPlanner(Planner):
                 if prediction_belief is not None:
                     self._record_obstacle_belief(
                         time_step=self.ego_state.time_step,
+                        predictions=predictions,
+                    )
+                    self._record_joint_belief(
+                        time_step=self.ego_state.time_step,
+                        prediction_belief=prediction_belief,
+                        joint_mode_selections=joint_mode_selections,
                         predictions=predictions,
                     )
 
@@ -1044,9 +1057,77 @@ class FrenetPlanner(Planner):
             if mode_behavior is not None:
                 history["mode_behavior"] = list(mode_behavior)
 
+    def _compute_joint_mode_weights(self, mode_belief, mode_selections):
+        if not mode_selections:
+            return [1.0]
+        if not isinstance(mode_belief, dict) or len(mode_belief) == 0:
+            uniform_weight = 1.0 / len(mode_selections)
+            return [uniform_weight] * len(mode_selections)
+
+        joint_weights = []
+        for mode_selection in mode_selections:
+            joint_weight = 1.0
+            for obstacle_id, mode_idx in mode_selection.items():
+                obstacle_belief = mode_belief.get(obstacle_id)
+                if obstacle_belief is None or mode_idx >= len(obstacle_belief):
+                    joint_weight = 0.0
+                    break
+                joint_weight *= obstacle_belief[mode_idx]
+            joint_weights.append(joint_weight)
+
+        weight_sum = sum(joint_weights)
+        if weight_sum <= 0.0:
+            uniform_weight = 1.0 / len(mode_selections)
+            return [uniform_weight] * len(mode_selections)
+        inv_weight_sum = 1.0 / weight_sum
+        return [weight * inv_weight_sum for weight in joint_weights]
+
+    def _format_joint_mode_label(self, mode_selection, predictions):
+        if not mode_selection:
+            return "shared only"
+
+        label_parts = []
+        for obstacle_id in sorted(mode_selection.keys()):
+            mode_idx = mode_selection[obstacle_id]
+            pred = predictions.get(obstacle_id, {})
+            mode_behavior = pred.get("mode_behavior", [])
+            if mode_idx < len(mode_behavior):
+                mode_name = mode_behavior[mode_idx]
+            else:
+                mode_name = f"mode{mode_idx}"
+            label_parts.append(f"{obstacle_id}={mode_name}")
+        return ", ".join(label_parts)
+
+    def _record_joint_belief(
+        self,
+        time_step,
+        prediction_belief,
+        joint_mode_selections,
+        predictions,
+    ):
+        joint_weights = self._compute_joint_mode_weights(
+            mode_belief=prediction_belief,
+            mode_selections=joint_mode_selections,
+        )
+        joint_labels = [
+            self._format_joint_mode_label(
+                mode_selection=mode_selection,
+                predictions=predictions,
+            )
+            for mode_selection in joint_mode_selections
+        ]
+
+        self.joint_belief_history["timesteps"].append(int(time_step))
+        self.joint_belief_history["joint_weights"].append(list(joint_weights))
+        self.joint_belief_history["joint_mode_selections"] = [
+            dict(selection) for selection in joint_mode_selections
+        ]
+        self.joint_belief_history["joint_mode_labels"] = list(joint_labels)
+
     def save_obstacle_belief_plots(self, output_dir, scenario_name=None):
         if len(self.obstacle_belief_history) == 0:
-            return
+            if len(self.joint_belief_history.get("timesteps", [])) == 0:
+                return
 
         output_path = pathlib.Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
@@ -1092,6 +1173,56 @@ class FrenetPlanner(Planner):
                 )
             )
             plt.close(fig)
+
+        joint_timesteps = self.joint_belief_history.get("timesteps", [])
+        joint_weight_series = self.joint_belief_history.get("joint_weights", [])
+        joint_labels = self.joint_belief_history.get("joint_mode_labels", [])
+        if len(joint_timesteps) == 0 or len(joint_weight_series) == 0:
+            return
+
+        joint_count = max(len(values) for values in joint_weight_series)
+        if joint_count == 0:
+            return
+
+        fig, ax = plt.subplots(figsize=(12, 6))
+        for joint_idx in range(joint_count):
+            joint_values = [
+                values[joint_idx] if joint_idx < len(values) else np.nan
+                for values in joint_weight_series
+            ]
+            label = (
+                f"joint {joint_idx}: {joint_labels[joint_idx]}"
+                if joint_idx < len(joint_labels)
+                else f"joint {joint_idx}"
+            )
+            ax.plot(
+                joint_timesteps,
+                joint_values,
+                marker="o",
+                linewidth=1.5,
+                label=label,
+            )
+
+        ax.set_xlabel("timestep")
+        ax.set_ylabel("joint belief")
+        ax.set_ylim(0.0, 1.0)
+        ax.set_title("Joint scenario belief evolution")
+        ax.grid(True, alpha=0.3)
+
+        if len(joint_labels) > 0:
+            legend_anchor_x = 1.02
+            ax.legend(loc="upper left", bbox_to_anchor=(legend_anchor_x, 1.0), fontsize=8)
+        else:
+            ax.legend()
+
+        fig.tight_layout()
+        fig.savefig(
+            output_path.joinpath(
+                f"{scenario_prefix}joint_belief.png"
+            ),
+            bbox_inches="tight",
+        )
+        plt.close(fig)
 
 
 if __name__ == "__main__":
