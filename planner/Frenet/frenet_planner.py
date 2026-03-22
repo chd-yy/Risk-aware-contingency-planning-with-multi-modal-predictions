@@ -220,6 +220,7 @@ class FrenetPlanner(Planner):
             "shared_plan_count": [],
             "recoverable_shared_plan_count": [],
             "credible_set_size": [],
+            "recoverability_indicator": [],
         }
 
         self.long_jerk = []  # 纵向 jerk 记录(调试舒适性)
@@ -931,6 +932,9 @@ class FrenetPlanner(Planner):
                 self.recoverability_history["credible_set_size"].append(
                     int(len(credible_joint_mode_selections))
                 )
+                self.recoverability_history["recoverability_indicator"].append(
+                    int(recoverable_shared_plan_count > 0)
+                )
 
                 # we need to get the belief over the modes to use it as weights in the cost function
                 '''
@@ -1420,6 +1424,7 @@ class FrenetPlanner(Planner):
         recoverable_counts = self.recoverability_history.get("recoverable_shared_plan_count", [])
         shared_counts = self.recoverability_history.get("shared_plan_count", [])
         recoverability_credible_sizes = self.recoverability_history.get("credible_set_size", [])
+        recoverability_indicators = self.recoverability_history.get("recoverability_indicator", [])
         if (
             len(recoverability_timesteps) > 0
             and len(shared_counts) == len(recoverability_timesteps)
@@ -1466,6 +1471,17 @@ class FrenetPlanner(Planner):
             ax2.tick_params(axis="y", labelcolor="tab:red")
             ax2.set_ylim(0.0, 1.05)
 
+            if len(recoverability_indicators) == len(recoverability_timesteps):
+                ax2.step(
+                    recoverability_timesteps,
+                    recoverability_indicators,
+                    where="post",
+                    linewidth=1.2,
+                    color="tab:orange",
+                    linestyle="--",
+                    label="recoverability indicator",
+                )
+
             if len(recoverability_credible_sizes) == len(recoverability_timesteps):
                 ax1.plot(
                     recoverability_timesteps,
@@ -1498,6 +1514,11 @@ class FrenetPlanner(Planner):
                         "shared_plan_count": int(shared_counts[idx]),
                         "recoverable_shared_plan_count": int(recoverable_counts[idx]),
                         "recoverability_ratio": float(recoverability_ratio[idx]),
+                        "recoverability_indicator": (
+                            int(recoverability_indicators[idx])
+                            if idx < len(recoverability_indicators)
+                            else int(recoverable_counts[idx] > 0)
+                        ),
                         "credible_set_size": (
                             int(recoverability_credible_sizes[idx])
                             if idx < len(recoverability_credible_sizes)
