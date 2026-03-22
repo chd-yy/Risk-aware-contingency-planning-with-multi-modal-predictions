@@ -279,11 +279,15 @@ class ScenarioHandler:
                 self._check_collision_simple(agent=agent, time_step=time_step)
                 # 做一步规划:agent.step 会调用 planner 生成轨迹/控制
                 self._do_simulation_step(agent=agent, time_step=time_step)
-            # stop if the max_simulation_time is reached and no reason was found
-            # 如果走到最后一步还没结束(比如没到达目标),就强制抛异常
-            if time_step == 50:
-                # breakpoint()
-                raise GoalReachedNotification("Goal reached in time!")
+
+            ego_passed_safely = any(
+                getattr(agent.state, "position", None) is not None
+                and float(agent.state.position[0]) < -10.0
+                for agent in self.agent_list
+            )
+            if ego_passed_safely:
+                raise GoalReachedNotification("Goal reached: ego passed x < -10 safely.")
+
             if time_step == (max_simulation_time_steps - 1):
                 raise Exception("Goal was not reached in time")
 
