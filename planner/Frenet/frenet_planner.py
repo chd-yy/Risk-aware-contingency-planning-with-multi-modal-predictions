@@ -1981,7 +1981,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     # 创建参数解析器
-    parser.add_argument("--scenario", default="recorded/hand-crafted/BRA_VilaVelha-92_1_T-10"
+    parser.add_argument("--scenario", default="recorded/hand-crafted/vv_samples/vv_074"
                                               ".xml")
     # --scenario:指定要评测的场景路径
     # 默认值被拆成两段字符串拼接(Python 会自动连接相邻字符串常量)

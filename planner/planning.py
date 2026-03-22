@@ -65,6 +65,109 @@ from planner.Frenet.utils.calc_trajectory_cost import distance # 引入计算路
 # CubicSpline2D:二维三次样条曲线(用离散点拟合成平滑曲线)
 from commonroad_helper_functions.utils.cubicspline import CubicSpline2D # 引入二维样条曲线工具类
 
+
+def _polyline_arc_lengths(points: np.ndarray) -> np.ndarray:
+    if len(points) == 0:
+        return np.array([0.0], dtype=float)
+    arc_lengths = [0.0]
+    for idx in range(1, len(points)):
+        segment_length = np.linalg.norm(points[idx] - points[idx - 1])
+        arc_lengths.append(arc_lengths[-1] + float(segment_length))
+    return np.asarray(arc_lengths, dtype=float)
+
+
+def _extended_spline_sample(spline, s_query: float, start_tangent: np.ndarray, end_tangent: np.ndarray) -> np.ndarray:
+    s_max = float(spline.s[-1])
+    if s_query < 0.0:
+        start_point = np.asarray(spline.calc_position(0.0), dtype=float)
+        return start_point + float(s_query) * start_tangent
+    if s_query > s_max:
+        end_point = np.asarray(spline.calc_position(s_max), dtype=float)
+        return end_point + float(s_query - s_max) * end_tangent
+    return np.asarray(spline.calc_position(float(s_query)), dtype=float)
+
+
+def _project_point_to_path_with_extension(path_points: np.ndarray, point: np.ndarray) -> float:
+    path_points = np.asarray(path_points, dtype=float)
+    point = np.asarray(point, dtype=float)
+    arc_lengths = _polyline_arc_lengths(path_points)
+    best_s = 0.0
+    best_dist = np.inf
+
+    for idx in range(len(path_points) - 1):
+        p0 = path_points[idx]
+        p1 = path_points[idx + 1]
+        segment = p1 - p0
+        seg_len_sq = float(segment @ segment)
+        if seg_len_sq < 1e-12:
+            continue
+        ratio = float(np.clip(((point - p0) @ segment) / seg_len_sq, 0.0, 1.0))
+        projection = p0 + ratio * segment
+        distance = float(np.linalg.norm(point - projection))
+        if distance < best_dist:
+            best_dist = distance
+            best_s = float(arc_lengths[idx] + ratio * np.sqrt(seg_len_sq))
+
+    if len(path_points) >= 2:
+        start_tangent = path_points[1] - path_points[0]
+        start_norm = np.linalg.norm(start_tangent)
+        if start_norm > 1e-9:
+            start_tangent = start_tangent / start_norm
+            start_projection = float((point - path_points[0]) @ start_tangent)
+            if start_projection < 0.0:
+                start_dist = float(np.linalg.norm(point - (path_points[0] + start_projection * start_tangent)))
+                if start_dist < best_dist:
+                    best_dist = start_dist
+                    best_s = start_projection
+
+        end_tangent = path_points[-1] - path_points[-2]
+        end_norm = np.linalg.norm(end_tangent)
+        if end_norm > 1e-9:
+            end_tangent = end_tangent / end_norm
+            end_projection = float((point - path_points[-1]) @ end_tangent)
+            if end_projection > 0.0:
+                end_dist = float(np.linalg.norm(point - (path_points[-1] + end_projection * end_tangent)))
+                if end_dist < best_dist:
+                    best_s = float(arc_lengths[-1] + end_projection)
+
+    return float(best_s)
+
+
+def _align_global_path_with_initial_state(path_points: np.ndarray, initial_position: np.ndarray) -> np.ndarray:
+    path_points = np.asarray(path_points, dtype=float)
+    initial_position = np.asarray(initial_position, dtype=float)
+    if len(path_points) < 2:
+        return path_points
+
+    spline = CubicSpline2D(x=path_points[:, 0], y=path_points[:, 1])
+    start_tangent = path_points[1] - path_points[0]
+    end_tangent = path_points[-1] - path_points[-2]
+    if np.linalg.norm(start_tangent) < 1e-9:
+        start_tangent = np.array([1.0, 0.0], dtype=float)
+    else:
+        start_tangent = start_tangent / np.linalg.norm(start_tangent)
+    if np.linalg.norm(end_tangent) < 1e-9:
+        end_tangent = np.array([1.0, 0.0], dtype=float)
+    else:
+        end_tangent = end_tangent / np.linalg.norm(end_tangent)
+
+    arc_lengths = _polyline_arc_lengths(path_points)
+    start_s = _project_point_to_path_with_extension(
+        path_points=path_points,
+        point=initial_position,
+    )
+    aligned_points = [
+        _extended_spline_sample(
+            spline=spline,
+            s_query=float(start_s + s_offset),
+            start_tangent=start_tangent,
+            end_tangent=end_tangent,
+        )
+        for s_offset in arc_lengths
+    ]
+    aligned_points[0] = initial_position
+    return np.asarray(aligned_points, dtype=float)
+
 # 规划代理类
 class PlanningAgent(Agent):
     def __init__(
@@ -650,7 +753,18 @@ class Planner(object):
             #     y.append(5.4)
                 # x = [-8, -6, -4, -2, 0, 2, 4, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 20]
                 # y = [-1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8, -1.8]
-            self.global_path = np.transpose(np.array([x, y]))
+            nominal_global_path = np.transpose(np.array([x, y]))
+            initial_state_for_path = initial_state
+            if initial_state_for_path is None and planning_problem is not None:
+                initial_state_for_path = planning_problem.initial_state
+
+            if initial_state_for_path is not None and hasattr(initial_state_for_path, "position"):
+                self.global_path = _align_global_path_with_initial_state(
+                    path_points=nominal_global_path,
+                    initial_position=np.asarray(initial_state_for_path.position, dtype=float),
+                )
+            else:
+                self.global_path = nominal_global_path
             # 通过离散点生成平滑的 2D 样条曲线(reference spline),方便后续 Frenet 坐标计算
             self.__reference_spline = CubicSpline2D(
                 x=self.global_path[:, 0], y=self.global_path[:, 1]
