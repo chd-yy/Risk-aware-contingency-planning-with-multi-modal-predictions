@@ -23,6 +23,7 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.animation as animation
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 # matplotlib.patches.Polygon 用于画可达集、多边形区域等
 from matplotlib.patches import Polygon
@@ -720,6 +721,7 @@ def draw_all_plans(
         live=True,
         valid_traj=None,
         best_traj=None,
+        adaptive_branching_info: dict = None,
         open_loop=False,
 ):
     """
@@ -742,7 +744,9 @@ def draw_all_plans(
             show_label,
         )
 
-    if best_traj is not None and len(best_traj) != 0:
+    has_best_traj = best_traj is not None and len(best_traj) != 0
+
+    if has_best_traj:
         # x and y axis description
         ax.set_xlabel("x(m)")
         ax.set_ylabel("y(m)")
@@ -819,50 +823,66 @@ def draw_all_plans(
             picker=picker,
         )
 
-    # plot best trajectory（最佳计划的 shared 部分）
-    ax.plot(best_traj[0]['shared_plan'].x, best_traj[0]['shared_plan'].y, alpha=1.0, linewidth=3.0, color='tab:green',
-            zorder=25, picker=picker)
-
-    # 再画最佳计划的 contingent 部分
-    keys_list = list(best_traj[0])
-    for idx, key in enumerate(keys_list[1:-1]):
-        if key not in best_traj[0]:
-            continue
-        if not hasattr(best_traj[0][key], "x"):
-            continue
+    if has_best_traj:
         ax.plot(
-            best_traj[0][key].x,
-            best_traj[0][key].y,
+            best_traj[0]['shared_plan'].x,
+            best_traj[0]['shared_plan'].y,
             alpha=1.0,
-            color='tab:blue',
-            linewidth=2.0,
+            linewidth=3.0,
+            color='tab:green',
             zorder=25,
-            label="Best trajectory" if idx == 0 else None,
             picker=picker,
         )
 
-
-    # draw predictions
-    prediction_plot_list = list(predictions.values())[:10]
-
-    for pred in prediction_plot_list:
-        pos_list = pred["pos_list"][:20]
-
-        if isinstance(pos_list, np.ndarray):
-            pos_list = [pos_list]
-
-        for traj_xy in pos_list:
+        keys_list = list(best_traj[0])
+        for idx, key in enumerate(keys_list[1:-1]):
+            if key not in best_traj[0]:
+                continue
+            if not hasattr(best_traj[0][key], "x"):
+                continue
             ax.plot(
-                traj_xy[:, 0],
-                traj_xy[:, 1],
-                alpha=0.5,
-                color='tab:gray',
-                lw=0.5,
+                best_traj[0][key].x,
+                best_traj[0][key].y,
+                alpha=1.0,
+                color='tab:blue',
+                linewidth=2.0,
                 zorder=25,
-                marker='o',
-                markersize=2,
+                label="Best trajectory" if idx == 0 else None,
                 picker=picker,
             )
+
+    if predictions is not None:
+        prediction_plot_list = list(predictions.values())[:10]
+        for pred in prediction_plot_list:
+            pos_list = pred.get("pos_list")
+            if pos_list is None:
+                continue
+            if isinstance(pos_list, np.ndarray):
+                pos_list = [pos_list]
+            elif not isinstance(pos_list, list):
+                continue
+
+            for traj_xy in pos_list[:20]:
+                traj_xy = np.asarray(traj_xy, dtype=float)
+                if traj_xy.ndim != 2 or traj_xy.shape[1] != 2:
+                    continue
+                ax.plot(
+                    traj_xy[:, 0],
+                    traj_xy[:, 1],
+                    alpha=0.5,
+                    color='tab:gray',
+                    lw=0.5,
+                    zorder=25,
+                    marker='o',
+                    markersize=2,
+                    picker=picker,
+                )
+
+    if adaptive_branching_info is not None:
+        draw_adaptive_branching_overlay(
+            ax=ax,
+            adaptive_branching_info=adaptive_branching_info,
+        )
 
 
     # if predictions is not None:
@@ -873,8 +893,93 @@ def draw_all_plans(
     # show the figure until the next one ins ready
     # plt.savefig(str(i).zfill(4) + ".png")
     # i += 1
+    if ax.figure is not None and ax.figure.canvas is not None:
+        ax.figure.canvas.draw_idle()
     capture_plot_snapshot(ax=ax)
     plt.pause(0.000001)
+
+
+def draw_adaptive_branching_overlay(ax, adaptive_branching_info: dict):
+    """
+    在在线可视化里叠加 adaptive branching 信息：
+    - 当前选中的 branch time
+    - 当前选中的 separability
+    - 候选时刻的 Sep_k 小图
+    """
+    if ax is None or adaptive_branching_info is None:
+        return
+
+    selected_branch_time = adaptive_branching_info.get("selected_branch_time")
+    selected_separability = adaptive_branching_info.get("selected_separability")
+    separability_threshold = adaptive_branching_info.get("separability_threshold")
+    selection_reason = adaptive_branching_info.get("selection_reason", "unknown")
+    selected_branch_step = adaptive_branching_info.get("selected_branch_step")
+    candidate_times = adaptive_branching_info.get("candidate_times", [])
+    separability_series = adaptive_branching_info.get("separability_series", [])
+
+    info_lines = [
+        "Adaptive branching",
+        f"t_b*: {selected_branch_time:.2f}s" if selected_branch_time is not None else "t_b*: n/a",
+        f"step: {selected_branch_step}" if selected_branch_step is not None else "step: n/a",
+        f"Sep(t_b*): {selected_separability:.3f}" if selected_separability is not None else "Sep(t_b*): n/a",
+        f"eps_sep: {separability_threshold:.3f}" if separability_threshold is not None else "eps_sep: n/a",
+        f"reason: {selection_reason}",
+    ]
+    ax.text(
+        0.02,
+        0.98,
+        "\n".join(info_lines),
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=8,
+        bbox=dict(boxstyle="round", facecolor="white", alpha=0.85, edgecolor="gray"),
+        zorder=50,
+    )
+
+    if len(candidate_times) == 0 or len(candidate_times) != len(separability_series):
+        return
+
+    try:
+        inset_ax = inset_axes(
+            ax,
+            width="28%",
+            height="22%",
+            loc="upper right",
+            borderpad=1.2,
+        )
+    except Exception:
+        return
+
+    inset_ax.plot(
+        candidate_times,
+        separability_series,
+        marker="o",
+        linewidth=1.2,
+        color="tab:red",
+    )
+    if separability_threshold is not None:
+        inset_ax.axhline(
+            y=separability_threshold,
+            color="tab:orange",
+            linestyle="--",
+            linewidth=1.0,
+        )
+    if selected_branch_time is not None and selected_separability is not None:
+        inset_ax.scatter(
+            [selected_branch_time],
+            [selected_separability],
+            color="tab:blue",
+            s=25,
+            zorder=10,
+        )
+
+    inset_ax.set_title("Sep_k", fontsize=8)
+    inset_ax.set_xlabel("t [s]", fontsize=7)
+    inset_ax.set_ylabel("Sep", fontsize=7)
+    inset_ax.tick_params(axis="both", labelsize=7)
+    inset_ax.grid(True, alpha=0.25)
+    inset_ax.set_zorder(60)
 
 
 def draw_base_predictions(

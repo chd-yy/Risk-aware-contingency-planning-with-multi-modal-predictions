@@ -35,7 +35,7 @@ import pathlib
 import pickle
 import time
 import math
-from itertools import product
+from itertools import product, combinations
 
 # Third party imports
 import numpy as np
@@ -222,6 +222,16 @@ class FrenetPlanner(Planner):
             "credible_set_size": [],
             "recoverability_indicator": [],
         }
+        self.adaptive_branching_history = {
+            "timesteps": [],
+            "selected_branch_time": [],
+            "selected_branch_step": [],
+            "selected_separability": [],
+            "separability_threshold": [],
+            "candidate_times": [],
+            "separability_series": [],
+            "selection_reason": [],
+        }
 
         self.long_jerk = []  # 纵向 jerk 记录(调试舒适性)
         self.lat_jerk = []  # 横向 jerk 记录
@@ -254,10 +264,12 @@ class FrenetPlanner(Planner):
                     }
 
                 # 保存 Frenet 规划参数 & 应急规划参数
-                # parameters for frenet planner
                 self.frenet_parameters = frenet_parameters
-                # parameters for contingency planner
-                self.contingency_parameters = contingency_parameters
+                self.contingency_settings = contingency_parameters
+                if isinstance(contingency_parameters, dict) and "frenet_parameters" in contingency_parameters:
+                    self.contingency_parameters = contingency_parameters["frenet_parameters"]
+                else:
+                    self.contingency_parameters = contingency_parameters
 
                 # vehicle parameters
                 self.p = vehicle_params
@@ -505,73 +517,11 @@ class FrenetPlanner(Planner):
         c_d_d = self.trajectory["d_d_loc_mps"][1]
         c_d_dd = self.trajectory["d_dd_loc_mps2"][1]
 
-        # get the end velocities for the frenét paths
-        # =========================
-        # C) 构造末速度采样 v_list(基于加速度上限推 min/max)
-        # =========================
         current_v = self.ego_state.velocity
         max_acceleration = self.p.longitudinal.a_max
-        t_min = min(self.frenet_parameters["t_list"])
-        t_max = max(self.frenet_parameters["t_list"])
-
-        # 最大末速度:当前速度 + (a_max/2)*t_max(NOTE: 为啥 /2？可能是留余量或 jerk 约束的粗略近似)
-        max_v = min(
-            current_v + (max_acceleration / 2.0) * t_max, self.p.longitudinal.v_max
-        )
-        # 最小末速度:当前速度 - a_max*t_min(并且不能小于 0.01)
-        min_v = max(0.01, current_v - max_acceleration * t_min)
-
-        with self.exec_timer.time_with_cm("simulation/get v list"):
-            # 依据当前速度与最大加速度约束,确定采样速度集合
-            v_list = get_v_list(
-                v_min=min_v,
-                v_max=max_v,
-                v_cur=current_v,
-                v_goal_min=self.v_goal_min,
-                v_goal_max=self.v_goal_max,
-                mode=self.frenet_parameters["v_list_generation_mode"],
-                n_samples=self.frenet_parameters["n_v_samples"],
-            )
-
-        # =========================
-        # D) 生成候选 Frenet trajectories(shared horizon)
-        # =========================
-        with self.exec_timer.time_with_cm("simulation/calculate trajectories/total"):
-            # 在纵向时间/速度、横向 offset 的组合上批量生成多项式轨迹
-            # NOTE: 你这里覆盖了 frenet_parameters["d_list"],改成固定从 -3.6 到 0 的 10 点
-            # 这相当于只在某一侧车道范围采样(比如只向左变道或只向右回正)
-            # 若要更通用,应该用 self.frenet_parameters["d_list"]
-            # d_list = self.frenet_parameters["d_list"]
-            d_list = np.linspace(-1.75, 1.75, 7)
-            t_list = self.frenet_parameters["t_list"]
-            # breakpoint()
-            # if self.ego_state.time_step == 0 or self.open_loop is False:
-            # breakpoint()
-            ft_list = calc_frenet_trajectories(
-                c_s=c_s,
-                c_s_d=c_s_d,
-                c_s_dd=c_s_dd,
-                c_d=c_d,
-                c_d_d=c_d_d,
-                c_d_dd=c_d_dd,
-                d_list=d_list,
-                t_list=t_list,
-                v_list=v_list,
-                dt=self.frenet_parameters["dt"],
-                csp=self.reference_spline,
-                v_thr=self.frenet_parameters["v_thr"],
-                exec_timer=self.exec_timer,
-                # NOTE: 这些参数在你 calc_frenet_trajectories 里目前没用来过滤(若你没改那文件)
-                t_min=t_min,
-                t_max=t_max,
-                max_acceleration=max_acceleration,
-                max_velocity=self.p.longitudinal.v_max,
-                v_goal_min=self.v_goal_min,
-                v_goal_max=self.v_goal_max,
-                mode=self.frenet_parameters["v_list_generation_mode"],
-                n_samples=self.frenet_parameters["n_v_samples"],
-                contin=False
-            )
+        shared_t_list = list(self.frenet_parameters["t_list"])
+        shared_branch_time = float(max(shared_t_list))
+        shared_start_idx = int(round(shared_branch_time / self.frenet_parameters["dt"]))
         # =========================
         # E) 多模态预测:目标车道 -> 模式轨迹 -> GMM -> 初始模式概率
         # =========================
@@ -581,6 +531,7 @@ class FrenetPlanner(Planner):
         predictions = None
         base_predictions = None
         prediction_belief = None
+        adaptive_branching_info = None
         joint_mode_selections = []
         credible_joint_mode_selections = []
         credible_joint_mode_weights = [1.0]
@@ -711,6 +662,67 @@ class FrenetPlanner(Planner):
                     else:
                         credible_joint_mode_selections = []
                         credible_joint_mode_weights = [1.0]
+
+            adaptive_branching_info = self._select_adaptive_branch_time(
+                predictions=predictions,
+                credible_joint_mode_selections=credible_joint_mode_selections,
+            )
+            shared_branch_time = float(adaptive_branching_info["selected_branch_time"])
+            shared_t_list = [shared_branch_time]
+            shared_start_idx = int(round(shared_branch_time / self.frenet_parameters["dt"]))
+            self._record_adaptive_branching(
+                time_step=self.ego_state.time_step,
+                branching_info=adaptive_branching_info,
+            )
+
+        # =========================
+        # D) 生成候选 Frenet trajectories(shared horizon)
+        # =========================
+        shared_t_min = min(shared_t_list)
+        shared_t_max = max(shared_t_list)
+
+        max_v = min(
+            current_v + (max_acceleration / 2.0) * shared_t_max, self.p.longitudinal.v_max
+        )
+        min_v = max(0.01, current_v - max_acceleration * shared_t_min)
+
+        with self.exec_timer.time_with_cm("simulation/get v list"):
+            v_list = get_v_list(
+                v_min=min_v,
+                v_max=max_v,
+                v_cur=current_v,
+                v_goal_min=self.v_goal_min,
+                v_goal_max=self.v_goal_max,
+                mode=self.frenet_parameters["v_list_generation_mode"],
+                n_samples=self.frenet_parameters["n_v_samples"],
+            )
+
+        with self.exec_timer.time_with_cm("simulation/calculate trajectories/total"):
+            d_list = np.linspace(-1.75, 1.75, 7)
+            ft_list = calc_frenet_trajectories(
+                c_s=c_s,
+                c_s_d=c_s_d,
+                c_s_dd=c_s_dd,
+                c_d=c_d,
+                c_d_d=c_d_d,
+                c_d_dd=c_d_dd,
+                d_list=d_list,
+                t_list=shared_t_list,
+                v_list=v_list,
+                dt=self.frenet_parameters["dt"],
+                csp=self.reference_spline,
+                v_thr=self.frenet_parameters["v_thr"],
+                exec_timer=self.exec_timer,
+                t_min=shared_t_min,
+                t_max=shared_t_max,
+                max_acceleration=max_acceleration,
+                max_velocity=self.p.longitudinal.v_max,
+                v_goal_min=self.v_goal_min,
+                v_goal_max=self.v_goal_max,
+                mode=self.frenet_parameters["v_list_generation_mode"],
+                n_samples=self.frenet_parameters["n_v_samples"],
+                contin=False
+            )
 
         def _get_joint_mode_weights(mode_belief, mode_selections):
             if not mode_selections:
@@ -903,7 +915,7 @@ class FrenetPlanner(Planner):
                                 dt=self.frenet_parameters["dt"],
                                 sensor_radius=self.sensor_radius,
                                 exec_timer=self.exec_timer,
-                                start_idx=int(max(self.frenet_parameters["t_list"]) / self.frenet_parameters["dt"]),
+                                start_idx=shared_start_idx,
                                 mode_num=mode_selection,
                                 reach_set=(self.reach_set if self.responsibility else None)
                             )
@@ -1074,6 +1086,8 @@ class FrenetPlanner(Planner):
                     )
 
                 except Exception as e:
+                    import traceback
+                    traceback.print_exc()
                     print(e)
             # 初始时刻保存 contingency_trajectory(用于 open loop 可能复用)
             # if self.ego_state.time_step == 0:
@@ -1257,10 +1271,262 @@ class FrenetPlanner(Planner):
             "cumulative_prob": cumulative_prob,
         }
 
+    def _get_adaptive_branching_config(self):
+        adaptive_cfg = {}
+        if hasattr(self, "contingency_settings") and isinstance(self.contingency_settings, dict):
+            adaptive_cfg = self.contingency_settings.get("adaptive_branching", {})
+        elif isinstance(self.contingency_parameters, dict):
+            adaptive_cfg = self.contingency_parameters.get("adaptive_branching", {})
+        if not isinstance(adaptive_cfg, dict):
+            adaptive_cfg = {}
+
+        max_branch_time = float(
+            adaptive_cfg.get(
+                "max_branch_time",
+                max(self.frenet_parameters["t_list"]),
+            )
+        )
+        min_branch_time = float(
+            adaptive_cfg.get(
+                "min_branch_time",
+                self.frenet_parameters["dt"],
+            )
+        )
+        candidate_dt = float(
+            adaptive_cfg.get(
+                "candidate_dt",
+                self.frenet_parameters["dt"],
+            )
+        )
+        candidate_dt = max(candidate_dt, 1e-3)
+        min_branch_time = max(min_branch_time, candidate_dt)
+        max_branch_time = max(max_branch_time, min_branch_time)
+
+        explicit_candidate_times = adaptive_cfg.get("candidate_times")
+        if explicit_candidate_times:
+            candidate_times = sorted(
+                {
+                    round(float(value), 6)
+                    for value in explicit_candidate_times
+                    if min_branch_time <= float(value) <= max_branch_time
+                }
+            )
+        elif len(self.frenet_parameters["t_list"]) > 1:
+            candidate_times = sorted(
+                {
+                    round(float(value), 6)
+                    for value in self.frenet_parameters["t_list"]
+                    if min_branch_time <= float(value) <= max_branch_time
+                }
+            )
+        else:
+            candidate_times = [
+                round(float(value), 6)
+                for value in np.arange(
+                    min_branch_time,
+                    max_branch_time + 0.5 * candidate_dt,
+                    candidate_dt,
+                )
+            ]
+
+        if len(candidate_times) == 0:
+            candidate_times = [round(max_branch_time, 6)]
+
+        return {
+            "enabled": bool(adaptive_cfg.get("enabled", False)),
+            "candidate_times": candidate_times,
+            "separability_threshold": float(
+                adaptive_cfg.get("separability_threshold", 1.0)
+            ),
+        }
+
+    @staticmethod
+    def _bhattacharyya_distance(mu_a, cov_a, mu_b, cov_b):
+        mu_a = np.asarray(mu_a, dtype=float).reshape(-1)
+        mu_b = np.asarray(mu_b, dtype=float).reshape(-1)
+        cov_a = np.asarray(cov_a, dtype=float)
+        cov_b = np.asarray(cov_b, dtype=float)
+
+        dim = mu_a.shape[0]
+        regularizer = 1e-6 * np.eye(dim)
+        cov_a_reg = cov_a + regularizer
+        cov_b_reg = cov_b + regularizer
+        cov_bar = 0.5 * (cov_a_reg + cov_b_reg)
+
+        delta_mu = (mu_a - mu_b).reshape(-1, 1)
+        try:
+            inv_cov_bar = np.linalg.inv(cov_bar)
+        except np.linalg.LinAlgError:
+            inv_cov_bar = np.linalg.pinv(cov_bar)
+
+        quad_term = 0.125 * float(delta_mu.T @ inv_cov_bar @ delta_mu)
+        det_cov_a = max(float(np.linalg.det(cov_a_reg)), 1e-12)
+        det_cov_b = max(float(np.linalg.det(cov_b_reg)), 1e-12)
+        det_cov_bar = max(float(np.linalg.det(cov_bar)), 1e-12)
+        log_term = 0.5 * math.log(
+            det_cov_bar / math.sqrt(det_cov_a * det_cov_b)
+        )
+        return max(0.0, quad_term + log_term)
+
+    def _compute_joint_separability_at_step(
+        self,
+        predictions,
+        credible_joint_mode_selections,
+        future_step_idx,
+    ):
+        if len(credible_joint_mode_selections) < 2:
+            return math.inf
+
+        min_pair_distance = math.inf
+        for idx_a, idx_b in combinations(range(len(credible_joint_mode_selections)), 2):
+            mode_selection_a = credible_joint_mode_selections[idx_a]
+            mode_selection_b = credible_joint_mode_selections[idx_b]
+            obstacle_ids = sorted(
+                set(mode_selection_a.keys()) | set(mode_selection_b.keys())
+            )
+
+            pair_distance = 0.0
+            valid_obstacle_count = 0
+            for obstacle_id in obstacle_ids:
+                pred = predictions.get(obstacle_id)
+                if pred is None:
+                    continue
+
+                pos_list = pred.get("pos_list")
+                cov_list = pred.get("cov_list")
+                if not isinstance(pos_list, list) or not isinstance(cov_list, list):
+                    continue
+
+                mode_idx_a = int(mode_selection_a.get(obstacle_id, 0))
+                mode_idx_b = int(mode_selection_b.get(obstacle_id, 0))
+                if (
+                    mode_idx_a >= len(pos_list)
+                    or mode_idx_b >= len(pos_list)
+                    or mode_idx_a >= len(cov_list)
+                    or mode_idx_b >= len(cov_list)
+                ):
+                    continue
+
+                mode_mean_a = np.asarray(pos_list[mode_idx_a], dtype=float)
+                mode_mean_b = np.asarray(pos_list[mode_idx_b], dtype=float)
+                mode_cov_a = np.asarray(cov_list[mode_idx_a], dtype=float)
+                mode_cov_b = np.asarray(cov_list[mode_idx_b], dtype=float)
+                if len(mode_mean_a) == 0 or len(mode_mean_b) == 0:
+                    continue
+
+                step_idx = min(
+                    future_step_idx,
+                    len(mode_mean_a) - 1,
+                    len(mode_mean_b) - 1,
+                    len(mode_cov_a) - 1,
+                    len(mode_cov_b) - 1,
+                )
+                pair_distance += self._bhattacharyya_distance(
+                    mu_a=mode_mean_a[step_idx],
+                    cov_a=mode_cov_a[step_idx],
+                    mu_b=mode_mean_b[step_idx],
+                    cov_b=mode_cov_b[step_idx],
+                )
+                valid_obstacle_count += 1
+
+            if valid_obstacle_count == 0:
+                continue
+            min_pair_distance = min(min_pair_distance, pair_distance)
+
+        return min_pair_distance if np.isfinite(min_pair_distance) else 0.0
+
+    def _select_adaptive_branch_time(
+        self,
+        predictions,
+        credible_joint_mode_selections,
+    ):
+        config = self._get_adaptive_branching_config()
+        candidate_times = list(config["candidate_times"])
+        default_branch_time = float(max(candidate_times))
+        default_result = {
+            "selected_branch_time": default_branch_time,
+            "selected_branch_step": int(round(default_branch_time / self.scenario.dt)),
+            "selected_separability": 0.0,
+            "separability_threshold": float(config["separability_threshold"]),
+            "candidate_times": candidate_times,
+            "separability_series": [],
+            "selection_reason": "adaptive_branching_disabled",
+        }
+        if not config["enabled"]:
+            return default_result
+
+        if predictions is None or len(predictions) == 0:
+            default_result["selection_reason"] = "no_predictions"
+            return default_result
+
+        if len(credible_joint_mode_selections) < 2:
+            default_result["selection_reason"] = "insufficient_credible_joint_modes"
+            return default_result
+
+        separability_series = []
+        for candidate_time in candidate_times:
+            future_step_idx = max(0, int(round(float(candidate_time) / self.scenario.dt)))
+            separability_value = self._compute_joint_separability_at_step(
+                predictions=predictions,
+                credible_joint_mode_selections=credible_joint_mode_selections,
+                future_step_idx=future_step_idx,
+            )
+            separability_series.append(float(separability_value))
+
+        threshold = float(config["separability_threshold"])
+        selected_idx = len(candidate_times) - 1
+        selection_reason = "fallback_latest_branch_time"
+        for idx, separability_value in enumerate(separability_series):
+            if separability_value >= threshold:
+                selected_idx = idx
+                selection_reason = "first_separable_candidate"
+                break
+
+        return {
+            "selected_branch_time": float(candidate_times[selected_idx]),
+            "selected_branch_step": int(
+                round(float(candidate_times[selected_idx]) / self.scenario.dt)
+            ),
+            "selected_separability": float(separability_series[selected_idx]),
+            "separability_threshold": threshold,
+            "candidate_times": candidate_times,
+            "separability_series": separability_series,
+            "selection_reason": selection_reason,
+        }
+
+    def _record_adaptive_branching(self, time_step, branching_info):
+        self.adaptive_branching_history["timesteps"].append(int(time_step))
+        self.adaptive_branching_history["selected_branch_time"].append(
+            float(branching_info.get("selected_branch_time", 0.0))
+        )
+        self.adaptive_branching_history["selected_branch_step"].append(
+            int(branching_info.get("selected_branch_step", 0))
+        )
+        self.adaptive_branching_history["selected_separability"].append(
+            float(branching_info.get("selected_separability", 0.0))
+        )
+        self.adaptive_branching_history["separability_threshold"].append(
+            float(branching_info.get("separability_threshold", 0.0))
+        )
+        self.adaptive_branching_history["candidate_times"].append(
+            list(branching_info.get("candidate_times", []))
+        )
+        self.adaptive_branching_history["separability_series"].append(
+            list(branching_info.get("separability_series", []))
+        )
+        self.adaptive_branching_history["selection_reason"].append(
+            str(branching_info.get("selection_reason", "unknown"))
+        )
+
     def save_obstacle_belief_plots(self, output_dir, scenario_name=None):
-        if len(self.obstacle_belief_history) == 0:
-            if len(self.joint_belief_history.get("timesteps", [])) == 0:
-                return
+        if (
+            len(self.obstacle_belief_history) == 0
+            and len(self.joint_belief_history.get("timesteps", [])) == 0
+            and len(self.credible_joint_history.get("timesteps", [])) == 0
+            and len(self.recoverability_history.get("timesteps", [])) == 0
+            and len(self.adaptive_branching_history.get("timesteps", [])) == 0
+        ):
+            return
 
         output_path = pathlib.Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
@@ -1535,6 +1801,162 @@ class FrenetPlanner(Planner):
                 encoding="utf-8",
             ) as recoverability_file:
                 json.dump(recoverability_dump, recoverability_file, indent=2, ensure_ascii=False)
+
+        adaptive_timesteps = self.adaptive_branching_history.get("timesteps", [])
+        adaptive_branch_times = self.adaptive_branching_history.get("selected_branch_time", [])
+        adaptive_selected_sep = self.adaptive_branching_history.get("selected_separability", [])
+        adaptive_thresholds = self.adaptive_branching_history.get("separability_threshold", [])
+        adaptive_candidate_times = self.adaptive_branching_history.get("candidate_times", [])
+        adaptive_sep_series = self.adaptive_branching_history.get("separability_series", [])
+        if (
+            len(adaptive_timesteps) > 0
+            and len(adaptive_branch_times) == len(adaptive_timesteps)
+            and len(adaptive_selected_sep) == len(adaptive_timesteps)
+        ):
+            fig, ax1 = plt.subplots(figsize=(10, 5))
+            ax1.plot(
+                adaptive_timesteps,
+                adaptive_branch_times,
+                marker="o",
+                linewidth=1.5,
+                color="tab:blue",
+                label="selected branch time",
+            )
+            ax1.set_xlabel("timestep")
+            ax1.set_ylabel("branch time [s]", color="tab:blue")
+            ax1.tick_params(axis="y", labelcolor="tab:blue")
+            ax1.grid(True, alpha=0.3)
+
+            ax2 = ax1.twinx()
+            ax2.plot(
+                adaptive_timesteps,
+                adaptive_selected_sep,
+                marker="x",
+                linewidth=1.2,
+                color="tab:red",
+                label="selected separability",
+            )
+            if len(adaptive_thresholds) == len(adaptive_timesteps):
+                ax2.plot(
+                    adaptive_timesteps,
+                    adaptive_thresholds,
+                    linewidth=1.2,
+                    color="tab:orange",
+                    linestyle="--",
+                    label="separability threshold",
+                )
+            ax2.set_ylabel("separability", color="tab:red")
+            ax2.tick_params(axis="y", labelcolor="tab:red")
+
+            lines_1, labels_1 = ax1.get_legend_handles_labels()
+            lines_2, labels_2 = ax2.get_legend_handles_labels()
+            ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc="upper right")
+
+            fig.suptitle("Adaptive branching summary")
+            fig.tight_layout()
+            fig.savefig(
+                output_path.joinpath(
+                    f"{scenario_prefix}adaptive_branching_summary.png"
+                ),
+                bbox_inches="tight",
+            )
+            plt.close(fig)
+
+            adaptive_dump = {"timesteps": []}
+            for idx, timestep in enumerate(adaptive_timesteps):
+                adaptive_dump["timesteps"].append(
+                    {
+                        "time_step": int(timestep),
+                        "selected_branch_time": float(adaptive_branch_times[idx]),
+                        "selected_branch_step": int(
+                            self.adaptive_branching_history["selected_branch_step"][idx]
+                        ),
+                        "selected_separability": float(adaptive_selected_sep[idx]),
+                        "separability_threshold": (
+                            float(adaptive_thresholds[idx])
+                            if idx < len(adaptive_thresholds)
+                            else None
+                        ),
+                        "candidate_times": self.adaptive_branching_history["candidate_times"][idx],
+                        "separability_series": self.adaptive_branching_history["separability_series"][idx],
+                        "selection_reason": self.adaptive_branching_history["selection_reason"][idx],
+                    }
+                )
+
+            with open(
+                output_path.joinpath(
+                    f"{scenario_prefix}adaptive_branching.json"
+                ),
+                "w",
+                encoding="utf-8",
+            ) as adaptive_file:
+                json.dump(adaptive_dump, adaptive_file, indent=2, ensure_ascii=False)
+
+            if (
+                len(adaptive_candidate_times) == len(adaptive_timesteps)
+                and len(adaptive_sep_series) == len(adaptive_timesteps)
+                and len(adaptive_candidate_times) > 0
+            ):
+                unique_candidate_times = sorted(
+                    {
+                        round(float(candidate_time), 6)
+                        for candidate_times in adaptive_candidate_times
+                        for candidate_time in candidate_times
+                    }
+                )
+                if len(unique_candidate_times) > 0:
+                    sep_matrix = np.full(
+                        (len(adaptive_timesteps), len(unique_candidate_times)),
+                        np.nan,
+                        dtype=float,
+                    )
+                    candidate_index = {
+                        candidate_time: idx
+                        for idx, candidate_time in enumerate(unique_candidate_times)
+                    }
+                    for row_idx, (candidate_times, sep_values) in enumerate(
+                        zip(adaptive_candidate_times, adaptive_sep_series)
+                    ):
+                        for candidate_time, sep_value in zip(candidate_times, sep_values):
+                            col_idx = candidate_index.get(round(float(candidate_time), 6))
+                            if col_idx is not None:
+                                sep_matrix[row_idx, col_idx] = float(sep_value)
+
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    image = ax.imshow(
+                        sep_matrix.T,
+                        aspect="auto",
+                        origin="lower",
+                        interpolation="nearest",
+                        extent=[
+                            adaptive_timesteps[0] - 0.5,
+                            adaptive_timesteps[-1] + 0.5,
+                            unique_candidate_times[0],
+                            unique_candidate_times[-1],
+                        ],
+                        cmap="viridis",
+                    )
+                    ax.plot(
+                        adaptive_timesteps,
+                        adaptive_branch_times,
+                        color="tab:red",
+                        linewidth=1.5,
+                        label="selected branch time",
+                    )
+                    ax.set_xlabel("timestep")
+                    ax.set_ylabel("candidate branch time [s]")
+                    ax.set_title("Adaptive branching separability evolution")
+                    ax.legend(loc="upper right")
+                    colorbar = fig.colorbar(image, ax=ax)
+                    colorbar.set_label("Sep_k")
+                    fig.tight_layout()
+                    fig.savefig(
+                        output_path.joinpath(
+                            f"{scenario_prefix}adaptive_branching_separability_heatmap.png"
+                        ),
+                        bbox_inches="tight",
+                    )
+                    plt.close(fig)
 
 
 if __name__ == "__main__":

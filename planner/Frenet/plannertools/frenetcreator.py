@@ -101,7 +101,7 @@ class FrenetCreator(PlannerCreator):
             mode=self.frenet_settings["mode"],
             plot_frenet_trajectories=self.show_visualization, # arg不加time的时候就是true
             frenet_parameters=self.frenet_settings["frenet_parameters"],
-            contingency_parameters=self.contingency_settings["frenet_parameters"],
+            contingency_parameters=self.contingency_settings,
             weights=self.weights,
             settings=self.settings,
         )

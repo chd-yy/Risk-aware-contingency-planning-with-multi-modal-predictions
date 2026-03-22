@@ -2,129 +2,129 @@
   "timesteps": [
     {
       "time_step": 0,
-      "shared_plan_count": 35,
+      "shared_plan_count": 25,
       "recoverable_shared_plan_count": 25,
-      "recoverability_ratio": 0.7142857142857143,
+      "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
     {
       "time_step": 1,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 24,
-      "recoverability_ratio": 0.6857142857142857,
+      "shared_plan_count": 25,
+      "recoverable_shared_plan_count": 25,
+      "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
     {
       "time_step": 2,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 24,
-      "recoverability_ratio": 0.6857142857142857,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
+      "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 2
     },
     {
       "time_step": 3,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 23,
-      "recoverability_ratio": 0.6571428571428571,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
+      "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 2
     },
     {
       "time_step": 4,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 22,
-      "recoverability_ratio": 0.6285714285714286,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
+      "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 2
     },
     {
       "time_step": 5,
-      "shared_plan_count": 34,
-      "recoverable_shared_plan_count": 22,
-      "recoverability_ratio": 0.6470588235294118,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
+      "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 2
     },
     {
       "time_step": 6,
-      "shared_plan_count": 32,
+      "shared_plan_count": 20,
       "recoverable_shared_plan_count": 20,
-      "recoverability_ratio": 0.625,
+      "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 2
     },
     {
       "time_step": 7,
-      "shared_plan_count": 27,
-      "recoverable_shared_plan_count": 22,
-      "recoverability_ratio": 0.8148148148148148,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
+      "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 2
+      "credible_set_size": 3
     },
     {
       "time_step": 8,
-      "shared_plan_count": 19,
-      "recoverable_shared_plan_count": 19,
+      "shared_plan_count": 25,
+      "recoverable_shared_plan_count": 25,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 2
+      "credible_set_size": 3
     },
     {
       "time_step": 9,
-      "shared_plan_count": 11,
-      "recoverable_shared_plan_count": 11,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 2
+      "credible_set_size": 3
     },
     {
       "time_step": 10,
-      "shared_plan_count": 11,
-      "recoverable_shared_plan_count": 11,
+      "shared_plan_count": 17,
+      "recoverable_shared_plan_count": 17,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 2
     },
     {
       "time_step": 11,
-      "shared_plan_count": 11,
-      "recoverable_shared_plan_count": 11,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 2
+      "credible_set_size": 3
     },
     {
       "time_step": 12,
-      "shared_plan_count": 13,
-      "recoverable_shared_plan_count": 13,
+      "shared_plan_count": 21,
+      "recoverable_shared_plan_count": 21,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
     {
       "time_step": 13,
-      "shared_plan_count": 14,
-      "recoverable_shared_plan_count": 14,
-      "recoverability_ratio": 1.0,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 19,
+      "recoverability_ratio": 0.95,
       "recoverability_indicator": 1,
-      "credible_set_size": 4
+      "credible_set_size": 3
     },
     {
       "time_step": 14,
-      "shared_plan_count": 16,
-      "recoverable_shared_plan_count": 16,
-      "recoverability_ratio": 1.0,
+      "shared_plan_count": 15,
+      "recoverable_shared_plan_count": 14,
+      "recoverability_ratio": 0.9333333333333333,
       "recoverability_indicator": 1,
-      "credible_set_size": 4
+      "credible_set_size": 3
     },
     {
       "time_step": 15,
-      "shared_plan_count": 12,
-      "recoverable_shared_plan_count": 12,
-      "recoverability_ratio": 1.0,
+      "shared_plan_count": 18,
+      "recoverable_shared_plan_count": 17,
+      "recoverability_ratio": 0.9444444444444444,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
@@ -138,67 +138,67 @@
     },
     {
       "time_step": 17,
-      "shared_plan_count": 16,
-      "recoverable_shared_plan_count": 16,
+      "shared_plan_count": 11,
+      "recoverable_shared_plan_count": 11,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 3
+      "credible_set_size": 4
     },
     {
       "time_step": 18,
-      "shared_plan_count": 17,
-      "recoverable_shared_plan_count": 17,
+      "shared_plan_count": 3,
+      "recoverable_shared_plan_count": 3,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 3
+      "credible_set_size": 4
     },
     {
       "time_step": 19,
-      "shared_plan_count": 19,
-      "recoverable_shared_plan_count": 19,
+      "shared_plan_count": 3,
+      "recoverable_shared_plan_count": 3,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
     {
       "time_step": 20,
-      "shared_plan_count": 21,
-      "recoverable_shared_plan_count": 21,
+      "shared_plan_count": 13,
+      "recoverable_shared_plan_count": 13,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 2
+      "credible_set_size": 3
     },
     {
       "time_step": 21,
-      "shared_plan_count": 21,
-      "recoverable_shared_plan_count": 21,
+      "shared_plan_count": 19,
+      "recoverable_shared_plan_count": 19,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 2
     },
     {
       "time_step": 22,
-      "shared_plan_count": 20,
-      "recoverable_shared_plan_count": 20,
+      "shared_plan_count": 19,
+      "recoverable_shared_plan_count": 19,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 2
     },
     {
       "time_step": 23,
-      "shared_plan_count": 23,
-      "recoverable_shared_plan_count": 23,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 2
+      "credible_set_size": 3
     },
     {
       "time_step": 24,
-      "shared_plan_count": 28,
-      "recoverable_shared_plan_count": 28,
+      "shared_plan_count": 24,
+      "recoverable_shared_plan_count": 24,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 2
+      "credible_set_size": 3
     },
     {
       "time_step": 25,
@@ -210,11 +210,11 @@
     },
     {
       "time_step": 26,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 33,
+      "recoverable_shared_plan_count": 33,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 2
+      "credible_set_size": 3
     },
     {
       "time_step": 27,
@@ -266,144 +266,144 @@
     },
     {
       "time_step": 33,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 25,
+      "recoverable_shared_plan_count": 25,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 2
     },
     {
       "time_step": 34,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 25,
+      "recoverable_shared_plan_count": 25,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 2
     },
     {
       "time_step": 35,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 25,
+      "recoverable_shared_plan_count": 25,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 3
+      "credible_set_size": 2
     },
     {
       "time_step": 36,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 3
+      "credible_set_size": 2
     },
     {
       "time_step": 37,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 3
+      "credible_set_size": 2
     },
     {
       "time_step": 38,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 3
+      "credible_set_size": 2
     },
     {
       "time_step": 39,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 3
+      "credible_set_size": 2
     },
     {
       "time_step": 40,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 3
+      "credible_set_size": 2
     },
     {
       "time_step": 41,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
-      "credible_set_size": 3
+      "credible_set_size": 2
     },
     {
       "time_step": 42,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
     {
       "time_step": 43,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
     {
       "time_step": 44,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
     {
       "time_step": 45,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
     {
       "time_step": 46,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
     {
       "time_step": 47,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
     {
       "time_step": 48,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
     {
       "time_step": 49,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
     },
     {
       "time_step": 50,
-      "shared_plan_count": 35,
-      "recoverable_shared_plan_count": 35,
+      "shared_plan_count": 20,
+      "recoverable_shared_plan_count": 20,
       "recoverability_ratio": 1.0,
       "recoverability_indicator": 1,
       "credible_set_size": 3
