@@ -1255,7 +1255,7 @@ class FrenetPlanner(Planner):
         )
 
     def _detect_method_variant(self):
-        repo_root = pathlib.Path(__file__).resolve().parents[3]
+        repo_root = pathlib.Path(__file__).resolve().parents[2]
         try:
             branch_name = subprocess.check_output(
                 ["git", "branch", "--show-current"],
