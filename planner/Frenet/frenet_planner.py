@@ -35,6 +35,7 @@ import pathlib
 import pickle
 import time
 import math
+import subprocess
 from itertools import product, combinations
 
 # Third party imports
@@ -135,6 +136,13 @@ from beliefplanning.risk_assessment.visualization.risk_visualization import (
 from beliefplanning.risk_assessment.visualization.risk_dashboard import risk_dashboard
 
 CREDIBLE_SET_ALPHA = 0.05
+METHOD_VARIANT_ALIASES = {
+    "fixed_cp": "fixed_cp",
+    "robust-single": "robust_single",
+    "MLE": "MLE",
+    "ours_wo-CS": "ours_wo_CS",
+    "ours_wo-Rec": "ours_wo_Rec",
+}
 
 
 class FrenetPlanner(Planner):
@@ -232,6 +240,7 @@ class FrenetPlanner(Planner):
             "separability_series": [],
             "selection_reason": [],
         }
+        self.method_variant = self._detect_method_variant()
 
         self.long_jerk = []  # 纵向 jerk 记录(调试舒适性)
         self.lat_jerk = []  # 横向 jerk 记录
@@ -519,7 +528,10 @@ class FrenetPlanner(Planner):
 
         current_v = self.ego_state.velocity
         max_acceleration = self.p.longitudinal.a_max
-        shared_t_list = list(self.frenet_parameters["t_list"])
+        if self._is_single_shared_trajectory_method():
+            shared_t_list = [self._get_single_shared_horizon_time()]
+        else:
+            shared_t_list = list(self.frenet_parameters["t_list"])
         shared_branch_time = float(max(shared_t_list))
         shared_start_idx = int(round(shared_branch_time / self.frenet_parameters["dt"]))
         # =========================
@@ -786,6 +798,13 @@ class FrenetPlanner(Planner):
             belief = [p, 1-p]
             '''
             belief = prediction_belief
+            shared_mode_num = 100
+            if self.method_variant == "robust_single":
+                belief = None
+                shared_mode_num = 100
+            elif self.method_variant == "MLE" and len(credible_joint_mode_selections) > 0:
+                belief = None
+                shared_mode_num = credible_joint_mode_selections[0]
             # belief(分支概率)用于风险/代价权重
             # NOTE: 你这里 belief=branch_w(来自 MPC),而不是 belief_updater 的输出
             # belief = branch_w
@@ -806,7 +825,7 @@ class FrenetPlanner(Planner):
                 sensor_radius=self.sensor_radius,
                 exec_timer=self.exec_timer,
                 start_idx=0,
-                mode_num=100,
+                mode_num=shared_mode_num,
                 belief=belief,
                 reach_set=(self.reach_set if self.responsibility else None)
             )
@@ -835,6 +854,7 @@ class FrenetPlanner(Planner):
                 # d_list = self.contingency_parameters["d_list"]
                 d_list = np.linspace(-1.75, 1.75, 6)
                 t_list = self.contingency_parameters["t_list"]
+                contingency_required = (t_list[0] != 0) and (not self._is_single_shared_trajectory_method())
 
                 ft_final_list = []       # 每个 shared 轨迹对应一个 final_plan(字典)
                 ft_all_plans_list = []   # 用于绘图:保存 shared + 所有 contingent 候选
@@ -867,7 +887,7 @@ class FrenetPlanner(Planner):
                     ft_all_plans['shared_plan'] = plan
 
                     # 如果 contingency t_list 第一项不是 0,则需要规划后半段 contingent
-                    if t_list[0] != 0:
+                    if contingency_required:
                         ft_contingent_list = calc_frenet_trajectories(
                             c_s=plan.s[-1],
                             c_s_d=plan.s_d[-1],
@@ -926,7 +946,7 @@ class FrenetPlanner(Planner):
                     recoverable, missing_credible_modes = _check_recoverability(
                         final_plan=final_plan,
                         credible_mode_selections=credible_joint_mode_selections,
-                        contingency_required=(t_list[0] != 0),
+                        contingency_required=contingency_required,
                     )
                     final_plan["recoverable"] = recoverable
                     final_plan["missing_credible_modes"] = list(missing_credible_modes)
@@ -934,6 +954,7 @@ class FrenetPlanner(Planner):
 
                     if recoverable:
                         recoverable_shared_plan_count += 1
+                    if recoverable or (not self._enforces_recoverability_constraint()):
                         ft_final_list.append(final_plan)
 
                 self.recoverability_history["timesteps"].append(int(self.ego_state.time_step))
@@ -1233,6 +1254,52 @@ class FrenetPlanner(Planner):
             int(len(credible_set["indices"]))
         )
 
+    def _detect_method_variant(self):
+        repo_root = pathlib.Path(__file__).resolve().parents[3]
+        try:
+            branch_name = subprocess.check_output(
+                ["git", "branch", "--show-current"],
+                cwd=str(repo_root),
+                text=True,
+            ).strip()
+        except Exception:
+            branch_name = ""
+        return METHOD_VARIANT_ALIASES.get(branch_name, "ours")
+
+    def _uses_adaptive_branching(self):
+        return self.method_variant in {"ours", "ours_wo_CS", "ours_wo_Rec"}
+
+    def _uses_full_joint_scenario_set(self):
+        return self.method_variant in {"robust_single", "ours_wo_CS"}
+
+    def _is_mle_method(self):
+        return self.method_variant == "MLE"
+
+    def _is_single_shared_trajectory_method(self):
+        return self.method_variant in {"robust_single", "MLE"}
+
+    def _enforces_recoverability_constraint(self):
+        return self.method_variant in {"ours", "fixed_cp", "ours_wo_CS"}
+
+    def _get_single_shared_horizon_time(self):
+        if isinstance(self.contingency_parameters, dict) and "t_list" in self.contingency_parameters:
+            return float(max(self.contingency_parameters["t_list"]))
+        return float(max(self.frenet_parameters["t_list"]))
+
+    def _build_fixed_branching_info(self, branch_time, reason, candidate_times=None):
+        branch_time = float(branch_time)
+        if candidate_times is None or len(candidate_times) == 0:
+            candidate_times = [branch_time]
+        return {
+            "selected_branch_time": branch_time,
+            "selected_branch_step": int(round(branch_time / self.scenario.dt)),
+            "selected_separability": 0.0,
+            "separability_threshold": 0.0,
+            "candidate_times": list(candidate_times),
+            "separability_series": [],
+            "selection_reason": reason,
+        }
+
     def _compute_credible_joint_set(self, joint_weights, joint_labels, alpha=0.05):
         if joint_weights is None or len(joint_weights) == 0:
             return {
@@ -1240,6 +1307,24 @@ class FrenetPlanner(Planner):
                 "weights": [],
                 "labels": [],
                 "cumulative_prob": 0.0,
+            }
+
+        if self._uses_full_joint_scenario_set():
+            indices = list(range(len(joint_weights)))
+            return {
+                "indices": indices,
+                "weights": [float(weight) for weight in joint_weights],
+                "labels": list(joint_labels),
+                "cumulative_prob": float(sum(joint_weights)),
+            }
+
+        if self._is_mle_method():
+            best_idx = int(np.argmax(np.asarray(joint_weights, dtype=float)))
+            return {
+                "indices": [best_idx],
+                "weights": [float(joint_weights[best_idx])],
+                "labels": [joint_labels[best_idx]],
+                "cumulative_prob": float(joint_weights[best_idx]),
             }
 
         target_mass = max(0.0, min(1.0, 1.0 - float(alpha)))
@@ -1440,6 +1525,22 @@ class FrenetPlanner(Planner):
         predictions,
         credible_joint_mode_selections,
     ):
+        if self.method_variant == "fixed_cp":
+            fixed_time = 1.4
+            return self._build_fixed_branching_info(
+                branch_time=fixed_time,
+                reason="fixed_cp_1.4s",
+                candidate_times=[fixed_time],
+            )
+
+        if self._is_single_shared_trajectory_method():
+            full_horizon = self._get_single_shared_horizon_time()
+            return self._build_fixed_branching_info(
+                branch_time=full_horizon,
+                reason="single_shared_full_horizon",
+                candidate_times=[full_horizon],
+            )
+
         config = self._get_adaptive_branching_config()
         candidate_times = list(config["candidate_times"])
         default_branch_time = float(max(candidate_times))
@@ -1452,7 +1553,7 @@ class FrenetPlanner(Planner):
             "separability_series": [],
             "selection_reason": "adaptive_branching_disabled",
         }
-        if not config["enabled"]:
+        if (not config["enabled"]) or (not self._uses_adaptive_branching()):
             return default_result
 
         if predictions is None or len(predictions) == 0:
