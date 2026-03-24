@@ -977,6 +977,25 @@ class FrenetPlanner(Planner):
                 # print("Final plans sorted")
                 ft_final_list.sort(key=lambda fp: fp['cost'], reverse=False)
 
+                if len(ft_final_list) == 0:
+                    if len(ft_list_valid) == 0:
+                        raise RuntimeError(
+                            f"No valid shared Frenet trajectories at timestep {self.ego_state.time_step}"
+                        )
+                    if t_list[0] != 0 and len(credible_joint_mode_selections) > 0:
+                        raise RuntimeError(
+                            "No recoverable Frenet plan available at timestep "
+                            f"{self.ego_state.time_step} "
+                            f"(valid_shared={len(ft_list_valid)}, "
+                            f"credible_joint_modes={len(credible_joint_mode_selections)}, "
+                            f"recoverable_shared={recoverable_shared_plan_count})"
+                        )
+                    raise RuntimeError(
+                        f"No Frenet plan available for current step {self.ego_state.time_step}"
+                    )
+
+                best_plan = ft_final_list[0]
+
         # =========================
         # J) 可视化、风险图、记录输出
         # =========================
@@ -1042,7 +1061,7 @@ class FrenetPlanner(Planner):
                                                  state_rec, zPred)
                 '''
                 # 记录用于最终画图
-                self.traj_rec.append(ft_final_list[0])
+                self.traj_rec.append(best_plan)
                 self.state_rec.append(state_rec)
                 self.zPred_rec.append(zPred)
                 self.branch_w_rec.append(belief)
@@ -1098,13 +1117,7 @@ class FrenetPlanner(Planner):
             # NOTE: 这里 best_trajectory 取的是 ft_list_valid[0],而不是 ft_final_list[0]['shared_plan']
             #      也就是说:你最终输出的“控制轨迹”是 shared 轨迹的最优,而不是“加权后最优计划”的 shared 部分
             #      如果你想执行的是“最优全计划”的 shared 段,应改为 ft_final_list[0]['shared_plan']
-            if len(ft_final_list) > 0:
-                best_trajectory = ft_final_list[0]
-            # elif len(ft_list_invalid) > 0:
-            #     best_trajectory = {'shared_plan': ft_list_invalid[0], 'cost': ft_list_invalid[0].cost}
-            #     raise RuntimeError('Failed. No valid frenét path found')
-            else:
-                raise RuntimeError("No Frenet plan available for current step")
+            best_trajectory = best_plan
 
         self.exec_timer.stop_timer("simulation/total")
 

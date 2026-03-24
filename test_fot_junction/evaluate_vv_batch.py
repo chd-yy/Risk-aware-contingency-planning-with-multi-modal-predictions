@@ -281,6 +281,8 @@ def _scenario_metrics(
     credible_timesteps = []
     credible_labels = []
     recoverability_indicator = []
+    shared_plan_count = []
+    recoverable_shared_plan_count = []
     if planner is not None:
         credible_sizes = [
             int(value)
@@ -298,6 +300,28 @@ def _scenario_metrics(
             int(value)
             for value in planner.recoverability_history.get("recoverability_indicator", [])
         ]
+        shared_plan_count = [
+            int(value)
+            for value in planner.recoverability_history.get("shared_plan_count", [])
+        ]
+        recoverable_shared_plan_count = [
+            int(value)
+            for value in planner.recoverability_history.get("recoverable_shared_plan_count", [])
+        ]
+
+    unrecoverable_ratio_series = []
+    for shared_count, recoverable_count in zip(
+        shared_plan_count, recoverable_shared_plan_count
+    ):
+        if shared_count <= 0:
+            unrecoverable_ratio_series.append(1.0)
+        else:
+            unrecoverable_ratio_series.append(
+                max(
+                    0.0,
+                    1.0 - float(recoverable_count) / float(shared_count),
+                )
+            )
 
     coverage_hits = []
     for timestep, label_list in zip(credible_timesteps, credible_labels):
@@ -336,12 +360,15 @@ def _scenario_metrics(
         "Omega_bar": float(np.mean(credible_sizes)) if credible_sizes else None,
         "C_Omega": float(np.mean(coverage_hits)) if coverage_hits else None,
         "URR": (
-            float(1.0 - np.mean(recoverability_indicator))
-            if recoverability_indicator
+            float(np.mean(unrecoverable_ratio_series))
+            if unrecoverable_ratio_series
             else None
         ),
         "credible_set_sizes": credible_sizes,
         "recoverability_indicator": recoverability_indicator,
+        "shared_plan_count": shared_plan_count,
+        "recoverable_shared_plan_count": recoverable_shared_plan_count,
+        "unrecoverable_ratio_series": unrecoverable_ratio_series,
         "planning_cycle_times": planning_cycle_times,
     }
     return scenario_metric
@@ -377,10 +404,10 @@ def _aggregate_summary(per_scenario_metrics: List[Dict]) -> Dict:
         for item in per_scenario_metrics
         for value in item.get("credible_set_sizes", [])
     ]
-    all_recoverability = [
+    all_unrecoverable_ratio = [
         float(value)
         for item in per_scenario_metrics
-        for value in item.get("recoverability_indicator", [])
+        for value in item.get("unrecoverable_ratio_series", [])
     ]
     coverage_values = [
         float(item["C_Omega"])
@@ -401,8 +428,8 @@ def _aggregate_summary(per_scenario_metrics: List[Dict]) -> Dict:
         "Omega_bar": float(np.mean(all_credible_sizes)) if all_credible_sizes else None,
         "C_Omega": float(np.mean(coverage_values)) if coverage_values else None,
         "URR": (
-            float(1.0 - np.mean(all_recoverability))
-            if all_recoverability
+            float(np.mean(all_unrecoverable_ratio))
+            if all_unrecoverable_ratio
             else None
         ),
         "aggregation_notes": {
@@ -413,7 +440,7 @@ def _aggregate_summary(per_scenario_metrics: List[Dict]) -> Dict:
             "t95": "95th percentile of planning cycle time over all planning cycles.",
             "Omega_bar": "Mean credible joint scenario set size over all planning cycles.",
             "C_Omega": "Mean per-scenario true joint intent coverage by credible joint sets.",
-            "URR": "One minus recoverability indicator averaged over all planning cycles.",
+            "URR": "Mean unrecoverable shared-plan ratio over all planning cycles: 1 - recoverable_shared_plan_count / shared_plan_count.",
         },
     }
 
@@ -445,6 +472,9 @@ def _write_metrics_csv(output_path: Path, per_scenario_metrics: List[Dict]):
         row = dict(item)
         row.pop("credible_set_sizes", None)
         row.pop("recoverability_indicator", None)
+        row.pop("shared_plan_count", None)
+        row.pop("recoverable_shared_plan_count", None)
+        row.pop("unrecoverable_ratio_series", None)
         row.pop("planning_cycle_times", None)
         rows.append(row)
 
@@ -480,6 +510,12 @@ def main():
     parser.add_argument("--contingency-config", default="contingency.json")
     parser.add_argument("--risk-config", default="risk.json")
     parser.add_argument("--fps", type=int, default=10)
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Evaluate only the first N scenarios after sorting; base scenario is always first.",
+    )
     args = parser.parse_args()
 
     plt.ioff()
@@ -519,6 +555,8 @@ def main():
             f"No sampled XML files found under {path_to_scenarios.joinpath(args.sample_dir)}. "
             "Please generate the `vv_samples` scenarios first."
         )
+    if args.limit is not None:
+        scenario_list = scenario_list[: max(1, int(args.limit))]
     if len(scenario_list) != 100:
         print(
             f"Warning: expected 100 scenarios (1 base + 99 samples), "

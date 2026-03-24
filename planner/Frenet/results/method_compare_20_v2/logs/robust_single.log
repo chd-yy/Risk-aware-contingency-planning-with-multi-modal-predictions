@@ -1,0 +1,976 @@
+Warning: expected 100 scenarios (1 base + 99 samples), but found 20.
+[001/020] evaluating BRA_VilaVelha-92_1_T-10
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 11.91 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 11.87 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 11.77 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 11.68 m/s | Acceleration: -0.52 m/s2
+Time step: 4 | Velocity: 11.65 m/s | Acceleration: -0.01 m/s2
+Time step: 5 | Velocity: 11.70 m/s | Acceleration: 0.91 m/s2
+Time step: 6 | Velocity: 11.83 m/s | Acceleration: 1.57 m/s2
+Time step: 7 | Velocity: 12.01 m/s | Acceleration: 2.03 m/s2
+Time step: 8 | Velocity: 12.17 m/s | Acceleration: 1.26 m/s2
+Time step: 9 | Velocity: 12.27 m/s | Acceleration: 0.71 m/s2
+Time step: 10 | Velocity: 12.29 m/s | Acceleration: -0.23 m/s2
+Time step: 11 | Velocity: 12.26 m/s | Acceleration: -0.35 m/s2
+Time step: 12 | Velocity: 12.22 m/s | Acceleration: -0.43 m/s2
+Time step: 13 | Velocity: 12.20 m/s | Acceleration: 0.06 m/s2
+Time step: 14 | Velocity: 12.20 m/s | Acceleration: -0.14 m/s2
+Time step: 15 | Velocity: 12.18 m/s | Acceleration: -0.28 m/s2
+Time step: 16 | Velocity: 12.12 m/s | Acceleration: -0.93 m/s2
+Time step: 17 | Velocity: 12.03 m/s | Acceleration: -0.85 m/s2
+Time step: 18 | Velocity: 11.96 m/s | Acceleration: -0.60 m/s2
+Time step: 19 | Velocity: 11.90 m/s | Acceleration: -0.43 m/s2
+Time step: 20 | Velocity: 11.89 m/s | Acceleration: 0.06 m/s2
+Time step: 21 | Velocity: 11.91 m/s | Acceleration: 0.41 m/s2
+Time step: 22 | Velocity: 11.97 m/s | Acceleration: 0.66 m/s2
+Time step: 23 | Velocity: 12.07 m/s | Acceleration: 1.39 m/s2
+Time step: 24 | Velocity: 12.23 m/s | Acceleration: 1.90 m/s2
+Time step: 25 | Velocity: 12.44 m/s | Acceleration: 2.27 m/s2
+Time step: 26 | Velocity: 12.66 m/s | Acceleration: 1.98 m/s2
+Time step: 27 | Velocity: 12.82 m/s | Acceleration: 1.40 m/s2
+Time step: 28 | Velocity: 12.99 m/s | Acceleration: 1.91 m/s2
+Time step: 29 | Velocity: 13.20 m/s | Acceleration: 2.28 m/s2
+Time step: 30 | Velocity: 13.44 m/s | Acceleration: 2.53 m/s2
+[002/020] evaluating vv_001
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 11.84 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 11.81 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 11.74 m/s | Acceleration: -0.52 m/s2
+Time step: 3 | Velocity: 11.75 m/s | Acceleration: 0.55 m/s2
+Time step: 4 | Velocity: 11.84 m/s | Acceleration: 1.31 m/s2
+Time step: 5 | Velocity: 11.91 m/s | Acceleration: 0.19 m/s2
+Time step: 6 | Velocity: 11.89 m/s | Acceleration: -0.60 m/s2
+Time step: 7 | Velocity: 11.80 m/s | Acceleration: -1.16 m/s2
+Time step: 8 | Velocity: 11.67 m/s | Acceleration: -1.56 m/s2
+Time step: 9 | Velocity: 11.50 m/s | Acceleration: -1.84 m/s2
+Time step: 10 | Velocity: 11.30 m/s | Acceleration: -2.04 m/s2
+[FrenetPlanner] timestep=11: using max-risk fallback trajectory
+Time step: 11 | Velocity: 11.09 m/s | Acceleration: -2.18 m/s2
+[FrenetPlanner] timestep=12: using max-risk fallback trajectory
+Time step: 12 | Velocity: 10.87 m/s | Acceleration: -2.28 m/s2
+[FrenetPlanner] timestep=13: using max-risk fallback trajectory
+Time step: 13 | Velocity: 10.64 m/s | Acceleration: -2.36 m/s2
+Time step: 14 | Velocity: 10.40 m/s | Acceleration: -2.41 m/s2
+Time step: 15 | Velocity: 10.24 m/s | Acceleration: -0.79 m/s2
+Time step: 16 | Velocity: 10.22 m/s | Acceleration: 0.36 m/s2
+Time step: 17 | Velocity: 10.30 m/s | Acceleration: 1.17 m/s2
+Time step: 18 | Velocity: 10.44 m/s | Acceleration: 1.75 m/s2
+Time step: 19 | Velocity: 10.64 m/s | Acceleration: 2.16 m/s2
+Time step: 20 | Velocity: 10.81 m/s | Acceleration: 1.35 m/s2
+Time step: 21 | Velocity: 10.98 m/s | Acceleration: 1.88 m/s2
+[FrenetPlanner] timestep=22: using max-risk fallback trajectory
+Time step: 22 | Velocity: 11.14 m/s | Acceleration: 1.33 m/s2
+[FrenetPlanner] timestep=23: using max-risk fallback trajectory
+Time step: 23 | Velocity: 11.21 m/s | Acceleration: 0.21 m/s2
+[FrenetPlanner] timestep=24: using max-risk fallback trajectory
+Time step: 24 | Velocity: 11.19 m/s | Acceleration: -0.58 m/s2
+[FrenetPlanner] timestep=25: using max-risk fallback trajectory
+Time step: 25 | Velocity: 11.10 m/s | Acceleration: -1.15 m/s2
+[FrenetPlanner] timestep=26: using max-risk fallback trajectory
+Time step: 26 | Velocity: 10.97 m/s | Acceleration: -1.55 m/s2
+recorded/hand-crafted/vv_samples/vv_001.xml >>> Collision detected.
+[003/020] evaluating vv_002
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 12.19 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 12.15 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 12.09 m/s | Acceleration: -0.52 m/s2
+Time step: 3 | Velocity: 12.04 m/s | Acceleration: -0.55 m/s2
+Time step: 4 | Velocity: 11.99 m/s | Acceleration: -0.39 m/s2
+Time step: 5 | Velocity: 11.95 m/s | Acceleration: -0.46 m/s2
+Time step: 6 | Velocity: 11.91 m/s | Acceleration: -0.33 m/s2
+Time step: 7 | Velocity: 11.88 m/s | Acceleration: -0.23 m/s2
+Time step: 8 | Velocity: 11.88 m/s | Acceleration: 0.20 m/s2
+Time step: 9 | Velocity: 11.92 m/s | Acceleration: 0.51 m/s2
+Time step: 10 | Velocity: 11.92 m/s | Acceleration: -0.37 m/s2
+[FrenetPlanner] timestep=11: using max-risk fallback trajectory
+Time step: 11 | Velocity: 11.85 m/s | Acceleration: -1.00 m/s2
+[FrenetPlanner] timestep=12: using max-risk fallback trajectory
+Time step: 12 | Velocity: 11.73 m/s | Acceleration: -1.44 m/s2
+Time step: 13 | Velocity: 11.62 m/s | Acceleration: -0.66 m/s2
+Time step: 14 | Velocity: 11.59 m/s | Acceleration: -0.10 m/s2
+Time step: 15 | Velocity: 11.60 m/s | Acceleration: 0.30 m/s2
+Time step: 16 | Velocity: 11.64 m/s | Acceleration: 0.58 m/s2
+Time step: 17 | Velocity: 11.71 m/s | Acceleration: 0.78 m/s2
+Time step: 18 | Velocity: 11.79 m/s | Acceleration: 0.92 m/s2
+Time step: 19 | Velocity: 11.89 m/s | Acceleration: 1.02 m/s2
+Time step: 20 | Velocity: 12.03 m/s | Acceleration: 1.64 m/s2
+Time step: 21 | Velocity: 12.21 m/s | Acceleration: 2.08 m/s2
+Time step: 22 | Velocity: 12.44 m/s | Acceleration: 2.40 m/s2
+Time step: 23 | Velocity: 12.69 m/s | Acceleration: 2.62 m/s2
+Time step: 24 | Velocity: 12.96 m/s | Acceleration: 2.78 m/s2
+Time step: 25 | Velocity: 13.24 m/s | Acceleration: 2.89 m/s2
+Time step: 26 | Velocity: 13.54 m/s | Acceleration: 2.97 m/s2
+Time step: 27 | Velocity: 13.84 m/s | Acceleration: 3.03 m/s2
+Time step: 28 | Velocity: 14.09 m/s | Acceleration: 1.97 m/s2
+Time step: 29 | Velocity: 14.30 m/s | Acceleration: 2.31 m/s2
+[004/020] evaluating vv_003
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 12.23 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 12.19 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 12.09 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 11.95 m/s | Acceleration: -1.63 m/s2
+Time step: 4 | Velocity: 11.81 m/s | Acceleration: -1.15 m/s2
+Time step: 5 | Velocity: 11.71 m/s | Acceleration: -0.82 m/s2
+Time step: 6 | Velocity: 11.66 m/s | Acceleration: -0.21 m/s2
+Time step: 7 | Velocity: 11.66 m/s | Acceleration: 0.21 m/s2
+Time step: 8 | Velocity: 11.72 m/s | Acceleration: 1.07 m/s2
+Time step: 9 | Velocity: 11.82 m/s | Acceleration: 0.76 m/s2
+Time step: 10 | Velocity: 11.87 m/s | Acceleration: 0.36 m/s2
+[FrenetPlanner] timestep=11: using max-risk fallback trajectory
+Time step: 11 | Velocity: 11.86 m/s | Acceleration: -0.48 m/s2
+[FrenetPlanner] timestep=12: using max-risk fallback trajectory
+Time step: 12 | Velocity: 11.78 m/s | Acceleration: -1.08 m/s2
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: BRA
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_001
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+Traceback (most recent call last):
+  File "test_fot_junction/evaluate_vv_batch.py", line 83, in eval_scenario
+    self._simulate()
+  File "/home/yanjun/NewDisk/method_branches/beliefplanning/planner/plannertools/scenario_handler.py", line 279, in _simulate
+    self._check_collision_simple(agent=agent, time_step=time_step)
+  File "/home/yanjun/NewDisk/method_branches/beliefplanning/planner/plannertools/scenario_handler.py", line 662, in _check_collision_simple
+    raise NoLocalTrajectoryFoundError("Collision detected.")
+commonroad_helper_functions.exceptions.NoLocalTrajectoryFoundError: Collision detected.
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_002
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_003
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_004
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+[FrenetPlanner] timestep=13: using max-risk fallback trajectory
+Time step: 13 | Velocity: 11.65 m/s | Acceleration: -1.50 m/s2
+Time step: 14 | Velocity: 11.53 m/s | Acceleration: -1.06 m/s2
+Time step: 15 | Velocity: 11.44 m/s | Acceleration: -0.76 m/s2
+Time step: 16 | Velocity: 11.37 m/s | Acceleration: -0.54 m/s2
+Time step: 17 | Velocity: 11.33 m/s | Acceleration: -0.38 m/s2
+Time step: 18 | Velocity: 11.31 m/s | Acceleration: 0.10 m/s2
+Time step: 19 | Velocity: 11.34 m/s | Acceleration: 0.44 m/s2
+Time step: 20 | Velocity: 11.40 m/s | Acceleration: 0.68 m/s2
+Time step: 21 | Velocity: 11.50 m/s | Acceleration: 1.40 m/s2
+Time step: 22 | Velocity: 11.67 m/s | Acceleration: 1.91 m/s2
+Time step: 23 | Velocity: 11.88 m/s | Acceleration: 2.27 m/s2
+Time step: 24 | Velocity: 12.12 m/s | Acceleration: 2.53 m/s2
+Time step: 25 | Velocity: 12.38 m/s | Acceleration: 2.72 m/s2
+Time step: 26 | Velocity: 12.66 m/s | Acceleration: 2.85 m/s2
+Time step: 27 | Velocity: 12.92 m/s | Acceleration: 2.39 m/s2
+Time step: 28 | Velocity: 13.11 m/s | Acceleration: 1.51 m/s2
+Time step: 29 | Velocity: 13.21 m/s | Acceleration: 0.34 m/s2
+Time step: 30 | Velocity: 13.20 m/s | Acceleration: -0.49 m/s2
+[005/020] evaluating vv_004
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 12.04 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 12.00 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 11.93 m/s | Acceleration: -0.70 m/s2
+Time step: 3 | Velocity: 11.89 m/s | Acceleration: -0.13 m/s2
+Time step: 4 | Velocity: 11.89 m/s | Acceleration: 0.27 m/s2
+Time step: 5 | Velocity: 11.94 m/s | Acceleration: 0.56 m/s2
+Time step: 6 | Velocity: 11.98 m/s | Acceleration: 0.40 m/s2
+Time step: 7 | Velocity: 11.98 m/s | Acceleration: -0.45 m/s2
+Time step: 8 | Velocity: 11.90 m/s | Acceleration: -1.05 m/s2
+Time step: 9 | Velocity: 11.78 m/s | Acceleration: -1.48 m/s2
+[FrenetPlanner] timestep=10: using max-risk fallback trajectory
+Time step: 10 | Velocity: 11.61 m/s | Acceleration: -1.79 m/s2
+[FrenetPlanner] timestep=11: using max-risk fallback trajectory
+Time step: 11 | Velocity: 11.42 m/s | Acceleration: -2.00 m/s2
+[FrenetPlanner] timestep=12: using max-risk fallback trajectory
+Time step: 12 | Velocity: 11.21 m/s | Acceleration: -2.16 m/s2
+[FrenetPlanner] timestep=13: using max-risk fallback trajectory
+Time step: 13 | Velocity: 10.99 m/s | Acceleration: -2.27 m/s2
+Time step: 14 | Velocity: 10.76 m/s | Acceleration: -2.34 m/s2
+Time step: 15 | Velocity: 10.58 m/s | Acceleration: -1.30 m/s2
+Time step: 16 | Velocity: 10.49 m/s | Acceleration: -0.55 m/s2
+Time step: 17 | Velocity: 10.46 m/s | Acceleration: -0.03 m/s2
+Time step: 18 | Velocity: 10.51 m/s | Acceleration: 0.90 m/s2
+Time step: 19 | Velocity: 10.63 m/s | Acceleration: 1.56 m/s2
+Time step: 20 | Velocity: 10.81 m/s | Acceleration: 2.02 m/s2
+Time step: 21 | Velocity: 11.03 m/s | Acceleration: 2.35 m/s2
+Time step: 22 | Velocity: 11.28 m/s | Acceleration: 2.59 m/s2
+Time step: 23 | Velocity: 11.54 m/s | Acceleration: 2.76 m/s2
+Time step: 24 | Velocity: 11.83 m/s | Acceleration: 2.87 m/s2
+Time step: 25 | Velocity: 12.12 m/s | Acceleration: 2.96 m/s2
+Time step: 26 | Velocity: 12.42 m/s | Acceleration: 3.02 m/s2
+Time step: 27 | Velocity: 12.72 m/s | Acceleration: 3.06 m/s2
+Time step: 28 | Velocity: 13.03 m/s | Acceleration: 3.09 m/s2
+Time step: 29 | Velocity: 13.34 m/s | Acceleration: 3.11 m/s2
+Time step: 30 | Velocity: 13.65 m/s | Acceleration: 3.13 m/s2
+[006/020] evaluating vv_005
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 11.60 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 11.56 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 11.46 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 11.32 m/s | Acceleration: -1.63 m/s2
+Time step: 4 | Velocity: 11.18 m/s | Acceleration: -1.15 m/s2
+Time step: 5 | Velocity: 11.10 m/s | Acceleration: -0.45 m/s2
+Time step: 6 | Velocity: 11.08 m/s | Acceleration: 0.05 m/s2
+Time step: 7 | Velocity: 11.10 m/s | Acceleration: 0.40 m/s2
+Time step: 8 | Velocity: 11.18 m/s | Acceleration: 1.20 m/s2
+Time step: 9 | Velocity: 11.33 m/s | Acceleration: 1.77 m/s2
+Time step: 10 | Velocity: 11.48 m/s | Acceleration: 1.26 m/s2
+[FrenetPlanner] timestep=11: using max-risk fallback trajectory
+Time step: 11 | Velocity: 11.55 m/s | Acceleration: 0.16 m/s2
+[FrenetPlanner] timestep=12: using max-risk fallback trajectory
+Time step: 12 | Velocity: 11.53 m/s | Acceleration: -0.62 m/s2
+[FrenetPlanner] timestep=13: using max-risk fallback trajectory
+Time step: 13 | Velocity: 11.44 m/s | Acceleration: -1.18 m/s2
+Time step: 14 | Velocity: 11.30 m/s | Acceleration: -1.57 m/s2
+Time step: 15 | Velocity: 11.21 m/s | Acceleration: -0.20 m/s2
+Time step: 16 | Velocity: 11.22 m/s | Acceleration: 0.23 m/s2
+Time step: 17 | Velocity: 11.25 m/s | Acceleration: 0.53 m/s2
+Time step: 18 | Velocity: 11.32 m/s | Acceleration: 0.74 m/s2
+Time step: 19 | Velocity: 11.40 m/s | Acceleration: 0.89 m/s2
+Time step: 20 | Velocity: 11.52 m/s | Acceleration: 1.55 m/s2
+Time step: 21 | Velocity: 11.70 m/s | Acceleration: 2.02 m/s2
+Time step: 22 | Velocity: 11.92 m/s | Acceleration: 2.35 m/s2
+Time step: 23 | Velocity: 12.17 m/s | Acceleration: 2.59 m/s2
+Time step: 24 | Velocity: 12.44 m/s | Acceleration: 2.75 m/s2
+Time step: 25 | Velocity: 12.72 m/s | Acceleration: 2.87 m/s2
+Time step: 26 | Velocity: 13.01 m/s | Acceleration: 2.96 m/s2
+Time step: 27 | Velocity: 13.31 m/s | Acceleration: 3.02 m/s2
+Time step: 28 | Velocity: 13.62 m/s | Acceleration: 3.06 m/s2
+Time step: 29 | Velocity: 13.92 m/s | Acceleration: 3.09 m/s2
+Time step: 30 | Velocity: 14.23 m/s | Acceleration: 3.11 m/s2
+[007/020] evaluating vv_006
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 12.37 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 12.34 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 12.24 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 12.12 m/s | Acceleration: -1.07 m/s2
+Time step: 4 | Velocity: 12.03 m/s | Acceleration: -0.76 m/s2
+Time step: 5 | Velocity: 11.95 m/s | Acceleration: -0.73 m/s2
+Time step: 6 | Velocity: 11.89 m/s | Acceleration: -0.52 m/s2
+Time step: 7 | Velocity: 11.87 m/s | Acceleration: 0.00 m/s2
+Time step: 8 | Velocity: 11.88 m/s | Acceleration: 0.37 m/s2
+Time step: 9 | Velocity: 11.94 m/s | Acceleration: 0.63 m/s2
+Time step: 10 | Velocity: 11.99 m/s | Acceleration: 0.45 m/s2
+Time step: 11 | Velocity: 12.02 m/s | Acceleration: 0.13 m/s2
+Time step: 12 | Velocity: 12.05 m/s | Acceleration: 0.46 m/s2
+Time step: 13 | Velocity: 12.09 m/s | Acceleration: 0.33 m/s2
+Time step: 14 | Velocity: 12.11 m/s | Acceleration: 0.23 m/s2
+Time step: 15 | Velocity: 12.13 m/s | Acceleration: -0.02 m/s2
+Time step: 16 | Velocity: 12.12 m/s | Acceleration: -0.01 m/s2
+Time step: 17 | Velocity: 12.12 m/s | Acceleration: -0.01 m/s2
+Time step: 18 | Velocity: 12.12 m/s | Acceleration: -0.01 m/s2
+Time step: 19 | Velocity: 12.14 m/s | Acceleration: 0.36 m/s2
+Time step: 20 | Velocity: 12.19 m/s | Acceleration: 0.62 m/s2
+Time step: 21 | Velocity: 12.26 m/s | Acceleration: 0.81 m/s2
+Time step: 22 | Velocity: 12.38 m/s | Acceleration: 1.49 m/s2
+Time step: 23 | Velocity: 12.55 m/s | Acceleration: 1.98 m/s2
+Time step: 24 | Velocity: 12.77 m/s | Acceleration: 2.32 m/s2
+Time step: 25 | Velocity: 13.01 m/s | Acceleration: 2.57 m/s2
+Time step: 26 | Velocity: 13.28 m/s | Acceleration: 2.74 m/s2
+Time step: 27 | Velocity: 13.56 m/s | Acceleration: 2.86 m/s2
+Time step: 28 | Velocity: 13.85 m/s | Acceleration: 2.95 m/s2
+Time step: 29 | Velocity: 14.15 m/s | Acceleration: 3.01 m/s2
+[008/020] evaluating vv_007
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_005
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_006
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_007
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+Traceback (most recent call last):
+  File "test_fot_junction/evaluate_vv_batch.py", line 83, in eval_scenario
+    self._simulate()
+  File "/home/yanjun/NewDisk/method_branches/beliefplanning/planner/plannertools/scenario_handler.py", line 279, in _simulate
+    self._check_collision_simple(agent=agent, time_step=time_step)
+  File "/home/yanjun/NewDisk/method_branches/beliefplanning/planner/plannertools/scenario_handler.py", line 662, in _check_collision_simple
+    raise NoLocalTrajectoryFoundError("Collision detected.")
+commonroad_helper_functions.exceptions.NoLocalTrajectoryFoundError: Collision detected.
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_008
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+Traceback (most recent call last):
+  File "test_fot_junction/evaluate_vv_batch.py", line 83, in eval_scenario
+    self._simulate()
+  File "/home/yanjun/NewDisk/method_branches/beliefplanning/planner/plannertools/scenario_handler.py", line 279, in _simulate
+    self._check_collision_simple(agent=agent, time_step=time_step)
+  File "/home/yanjun/NewDisk/method_branches/beliefplanning/planner/plannertools/scenario_handler.py", line 662, in _check_collision_simple
+    raise NoLocalTrajectoryFoundError("Collision detected.")
+commonroad_helper_functions.exceptions.NoLocalTrajectoryFoundError: Collision detected.
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_009
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 11.88 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 11.84 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 11.74 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 11.60 m/s | Acceleration: -1.63 m/s2
+Time step: 4 | Velocity: 11.42 m/s | Acceleration: -1.89 m/s2
+Time step: 5 | Velocity: 11.31 m/s | Acceleration: -0.42 m/s2
+Time step: 6 | Velocity: 11.32 m/s | Acceleration: 0.62 m/s2
+Time step: 7 | Velocity: 11.42 m/s | Acceleration: 1.36 m/s2
+Time step: 8 | Velocity: 11.50 m/s | Acceleration: 0.23 m/s2
+Time step: 9 | Velocity: 11.48 m/s | Acceleration: -0.57 m/s2
+Time step: 10 | Velocity: 11.39 m/s | Acceleration: -1.14 m/s2
+Time step: 11 | Velocity: 11.26 m/s | Acceleration: -1.54 m/s2
+Time step: 12 | Velocity: 11.09 m/s | Acceleration: -1.83 m/s2
+Time step: 13 | Velocity: 10.89 m/s | Acceleration: -2.03 m/s2
+Time step: 14 | Velocity: 10.68 m/s | Acceleration: -2.18 m/s2
+Time step: 15 | Velocity: 10.46 m/s | Acceleration: -2.28 m/s2
+Time step: 16 | Velocity: 10.23 m/s | Acceleration: -2.35 m/s2
+Time step: 17 | Velocity: 9.99 m/s | Acceleration: -2.41 m/s2
+Time step: 18 | Velocity: 9.80 m/s | Acceleration: -1.34 m/s2
+Time step: 19 | Velocity: 9.71 m/s | Acceleration: -0.58 m/s2
+Time step: 20 | Velocity: 9.68 m/s | Acceleration: -0.05 m/s2
+Time step: 21 | Velocity: 9.72 m/s | Acceleration: 0.88 m/s2
+Time step: 22 | Velocity: 9.84 m/s | Acceleration: 1.54 m/s2
+Time step: 23 | Velocity: 10.02 m/s | Acceleration: 2.01 m/s2
+Time step: 24 | Velocity: 10.24 m/s | Acceleration: 2.35 m/s2
+Time step: 25 | Velocity: 10.49 m/s | Acceleration: 2.58 m/s2
+[FrenetPlanner] timestep=26: using max-risk fallback trajectory
+Time step: 26 | Velocity: 10.76 m/s | Acceleration: 2.75 m/s2
+[FrenetPlanner] timestep=27: using max-risk fallback trajectory
+Time step: 27 | Velocity: 10.95 m/s | Acceleration: 1.22 m/s2
+[FrenetPlanner] timestep=28: using max-risk fallback trajectory
+Time step: 28 | Velocity: 11.02 m/s | Acceleration: 0.13 m/s2
+[FrenetPlanner] timestep=29: using max-risk fallback trajectory
+Time step: 29 | Velocity: 10.99 m/s | Acceleration: -0.64 m/s2
+recorded/hand-crafted/vv_samples/vv_007.xml >>> Collision detected.
+[009/020] evaluating vv_008
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 11.72 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 11.68 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 11.58 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 11.52 m/s | Acceleration: 0.03 m/s2
+Time step: 4 | Velocity: 11.57 m/s | Acceleration: 0.94 m/s2
+Time step: 5 | Velocity: 11.61 m/s | Acceleration: -0.07 m/s2
+Time step: 6 | Velocity: 11.57 m/s | Acceleration: -0.78 m/s2
+Time step: 7 | Velocity: 11.46 m/s | Acceleration: -1.29 m/s2
+Time step: 8 | Velocity: 11.32 m/s | Acceleration: -1.65 m/s2
+Time step: 9 | Velocity: 11.14 m/s | Acceleration: -1.91 m/s2
+Time step: 10 | Velocity: 10.94 m/s | Acceleration: -2.09 m/s2
+Time step: 11 | Velocity: 10.72 m/s | Acceleration: -2.22 m/s2
+Time step: 12 | Velocity: 10.50 m/s | Acceleration: -2.31 m/s2
+Time step: 13 | Velocity: 10.26 m/s | Acceleration: -2.37 m/s2
+Time step: 14 | Velocity: 10.02 m/s | Acceleration: -2.42 m/s2
+Time step: 15 | Velocity: 9.86 m/s | Acceleration: -0.80 m/s2
+Time step: 16 | Velocity: 9.84 m/s | Acceleration: 0.35 m/s2
+Time step: 17 | Velocity: 9.92 m/s | Acceleration: 1.17 m/s2
+Time step: 18 | Velocity: 10.06 m/s | Acceleration: 1.75 m/s2
+Time step: 19 | Velocity: 10.26 m/s | Acceleration: 2.16 m/s2
+[FrenetPlanner] timestep=20: using max-risk fallback trajectory
+Time step: 20 | Velocity: 10.44 m/s | Acceleration: 1.53 m/s2
+[FrenetPlanner] timestep=21: using max-risk fallback trajectory
+Time step: 21 | Velocity: 10.54 m/s | Acceleration: 0.35 m/s2
+[FrenetPlanner] timestep=22: using max-risk fallback trajectory
+Time step: 22 | Velocity: 10.53 m/s | Acceleration: -0.48 m/s2
+[FrenetPlanner] timestep=23: using max-risk fallback trajectory
+Time step: 23 | Velocity: 10.45 m/s | Acceleration: -1.08 m/s2
+[FrenetPlanner] timestep=24: using max-risk fallback trajectory
+Time step: 24 | Velocity: 10.32 m/s | Acceleration: -1.50 m/s2
+recorded/hand-crafted/vv_samples/vv_008.xml >>> Collision detected.
+[010/020] evaluating vv_009
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 11.55 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 11.56 m/s | Acceleration: 0.37 m/s2
+Time step: 2 | Velocity: 11.61 m/s | Acceleration: 0.63 m/s2
+Time step: 3 | Velocity: 11.66 m/s | Acceleration: 0.26 m/s2
+Time step: 4 | Velocity: 11.67 m/s | Acceleration: 0.00 m/s2
+Time step: 5 | Velocity: 11.67 m/s | Acceleration: 0.00 m/s2
+Time step: 6 | Velocity: 11.67 m/s | Acceleration: 0.00 m/s2
+Time step: 7 | Velocity: 11.67 m/s | Acceleration: 0.00 m/s2
+Time step: 8 | Velocity: 11.69 m/s | Acceleration: 0.37 m/s2
+Time step: 9 | Velocity: 11.74 m/s | Acceleration: 0.63 m/s2
+Time step: 10 | Velocity: 11.79 m/s | Acceleration: 0.45 m/s2
+Time step: 11 | Velocity: 11.82 m/s | Acceleration: 0.13 m/s2
+Time step: 12 | Velocity: 11.82 m/s | Acceleration: -0.09 m/s2
+Time step: 13 | Velocity: 11.84 m/s | Acceleration: 0.30 m/s2
+Time step: 14 | Velocity: 11.86 m/s | Acceleration: 0.22 m/s2
+Time step: 15 | Velocity: 11.88 m/s | Acceleration: 0.15 m/s2
+Time step: 16 | Velocity: 11.89 m/s | Acceleration: 0.11 m/s2
+Time step: 17 | Velocity: 11.90 m/s | Acceleration: 0.08 m/s2
+Time step: 18 | Velocity: 11.93 m/s | Acceleration: 0.42 m/s2
+Time step: 19 | Velocity: 11.96 m/s | Acceleration: 0.30 m/s2
+Time step: 20 | Velocity: 12.01 m/s | Acceleration: 0.58 m/s2
+Time step: 21 | Velocity: 12.08 m/s | Acceleration: 0.78 m/s2
+Time step: 22 | Velocity: 12.19 m/s | Acceleration: 1.47 m/s2
+Time step: 23 | Velocity: 12.36 m/s | Acceleration: 1.96 m/s2
+Time step: 24 | Velocity: 12.58 m/s | Acceleration: 2.31 m/s2
+Time step: 25 | Velocity: 12.82 m/s | Acceleration: 2.56 m/s2
+Time step: 26 | Velocity: 13.09 m/s | Acceleration: 2.73 m/s2
+Time step: 27 | Velocity: 13.34 m/s | Acceleration: 2.31 m/s2
+Time step: 28 | Velocity: 13.50 m/s | Acceleration: 0.91 m/s2
+Time step: 29 | Velocity: 13.54 m/s | Acceleration: -0.09 m/s2
+Time step: 30 | Velocity: 13.49 m/s | Acceleration: -0.80 m/s2
+[011/020] evaluating vv_010
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 12.19 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 12.15 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 12.05 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 11.94 m/s | Acceleration: -0.89 m/s2
+Time step: 4 | Velocity: 11.87 m/s | Acceleration: -0.63 m/s2
+Time step: 5 | Velocity: 11.83 m/s | Acceleration: -0.08 m/s2
+Time step: 6 | Velocity: 11.84 m/s | Acceleration: 0.31 m/s2
+Time step: 7 | Velocity: 11.92 m/s | Acceleration: 1.14 m/s2
+Time step: 8 | Velocity: 12.06 m/s | Acceleration: 1.72 m/s2
+Time step: 9 | Velocity: 12.20 m/s | Acceleration: 1.04 m/s2
+Time step: 10 | Velocity: 12.28 m/s | Acceleration: 0.56 m/s2
+Time step: 11 | Velocity: 12.29 m/s | Acceleration: -0.34 m/s2
+Time step: 12 | Velocity: 12.25 m/s | Acceleration: -0.42 m/s2
+Time step: 13 | Velocity: 12.17 m/s | Acceleration: -1.04 m/s2
+Time step: 14 | Velocity: 12.09 m/s | Acceleration: -0.74 m/s2
+Time step: 15 | Velocity: 11.99 m/s | Acceleration: -1.26 m/s2
+Time step: 16 | Velocity: 11.87 m/s | Acceleration: -1.08 m/s2
+Time step: 17 | Velocity: 11.78 m/s | Acceleration: -0.76 m/s2
+Time step: 18 | Velocity: 11.71 m/s | Acceleration: -0.54 m/s2
+Time step: 19 | Velocity: 11.68 m/s | Acceleration: -0.02 m/s2
+Time step: 20 | Velocity: 11.70 m/s | Acceleration: 0.35 m/s2
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_010
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_011
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_012
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_013
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_014
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+Time step: 21 | Velocity: 11.75 m/s | Acceleration: 0.62 m/s2
+Time step: 22 | Velocity: 11.85 m/s | Acceleration: 1.36 m/s2
+Time step: 23 | Velocity: 12.01 m/s | Acceleration: 1.88 m/s2
+Time step: 24 | Velocity: 12.22 m/s | Acceleration: 2.25 m/s2
+Time step: 25 | Velocity: 12.46 m/s | Acceleration: 2.52 m/s2
+Time step: 26 | Velocity: 12.72 m/s | Acceleration: 2.71 m/s2
+Time step: 27 | Velocity: 13.00 m/s | Acceleration: 2.84 m/s2
+Time step: 28 | Velocity: 13.29 m/s | Acceleration: 2.93 m/s2
+Time step: 29 | Velocity: 13.59 m/s | Acceleration: 3.00 m/s2
+Time step: 30 | Velocity: 13.89 m/s | Acceleration: 3.05 m/s2
+[012/020] evaluating vv_011
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 11.88 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 11.84 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 11.74 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 11.65 m/s | Acceleration: -0.52 m/s2
+Time step: 4 | Velocity: 11.65 m/s | Acceleration: 0.55 m/s2
+Time step: 5 | Velocity: 11.75 m/s | Acceleration: 1.30 m/s2
+Time step: 6 | Velocity: 11.91 m/s | Acceleration: 1.84 m/s2
+Time step: 7 | Velocity: 12.06 m/s | Acceleration: 1.31 m/s2
+Time step: 8 | Velocity: 12.14 m/s | Acceleration: 0.20 m/s2
+Time step: 9 | Velocity: 12.11 m/s | Acceleration: -0.60 m/s2
+[FrenetPlanner] timestep=10: using max-risk fallback trajectory
+Time step: 10 | Velocity: 12.03 m/s | Acceleration: -1.16 m/s2
+[FrenetPlanner] timestep=11: using max-risk fallback trajectory
+Time step: 11 | Velocity: 11.89 m/s | Acceleration: -1.56 m/s2
+[FrenetPlanner] timestep=12: using max-risk fallback trajectory
+Time step: 12 | Velocity: 11.72 m/s | Acceleration: -1.84 m/s2
+[FrenetPlanner] timestep=13: using max-risk fallback trajectory
+Time step: 13 | Velocity: 11.53 m/s | Acceleration: -2.04 m/s2
+Time step: 14 | Velocity: 11.35 m/s | Acceleration: -1.45 m/s2
+Time step: 15 | Velocity: 11.23 m/s | Acceleration: -1.03 m/s2
+Time step: 16 | Velocity: 11.16 m/s | Acceleration: -0.36 m/s2
+Time step: 17 | Velocity: 11.15 m/s | Acceleration: 0.11 m/s2
+Time step: 18 | Velocity: 11.18 m/s | Acceleration: 0.44 m/s2
+Time step: 19 | Velocity: 11.23 m/s | Acceleration: 0.68 m/s2
+Time step: 20 | Velocity: 11.34 m/s | Acceleration: 1.40 m/s2
+Time step: 21 | Velocity: 11.50 m/s | Acceleration: 1.91 m/s2
+Time step: 22 | Velocity: 11.71 m/s | Acceleration: 2.28 m/s2
+Time step: 23 | Velocity: 11.96 m/s | Acceleration: 2.53 m/s2
+Time step: 24 | Velocity: 12.22 m/s | Acceleration: 2.72 m/s2
+Time step: 25 | Velocity: 12.50 m/s | Acceleration: 2.85 m/s2
+Time step: 26 | Velocity: 12.79 m/s | Acceleration: 2.94 m/s2
+Time step: 27 | Velocity: 13.08 m/s | Acceleration: 3.00 m/s2
+Time step: 28 | Velocity: 13.30 m/s | Acceleration: 1.40 m/s2
+Time step: 29 | Velocity: 13.38 m/s | Acceleration: 0.26 m/s2
+Time step: 30 | Velocity: 13.37 m/s | Acceleration: -0.55 m/s2
+[013/020] evaluating vv_012
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 11.71 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 11.67 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 11.57 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 11.43 m/s | Acceleration: -1.63 m/s2
+Time step: 4 | Velocity: 11.25 m/s | Acceleration: -1.89 m/s2
+Time step: 5 | Velocity: 11.11 m/s | Acceleration: -0.97 m/s2
+Time step: 6 | Velocity: 11.04 m/s | Acceleration: -0.32 m/s2
+Time step: 7 | Velocity: 11.04 m/s | Acceleration: 0.14 m/s2
+Time step: 8 | Velocity: 11.09 m/s | Acceleration: 1.01 m/s2
+Time step: 9 | Velocity: 11.23 m/s | Acceleration: 1.64 m/s2
+Time step: 10 | Velocity: 11.37 m/s | Acceleration: 1.16 m/s2
+Time step: 11 | Velocity: 11.47 m/s | Acceleration: 0.83 m/s2
+Time step: 12 | Velocity: 11.54 m/s | Acceleration: 0.59 m/s2
+Time step: 13 | Velocity: 11.58 m/s | Acceleration: 0.23 m/s2
+Time step: 14 | Velocity: 11.62 m/s | Acceleration: 0.53 m/s2
+Time step: 15 | Velocity: 11.62 m/s | Acceleration: -0.36 m/s2
+Time step: 16 | Velocity: 11.59 m/s | Acceleration: -0.25 m/s2
+Time step: 17 | Velocity: 11.56 m/s | Acceleration: -0.36 m/s2
+Time step: 18 | Velocity: 11.53 m/s | Acceleration: -0.26 m/s2
+Time step: 19 | Velocity: 11.53 m/s | Acceleration: 0.18 m/s2
+Time step: 20 | Velocity: 11.56 m/s | Acceleration: 0.50 m/s2
+Time step: 21 | Velocity: 11.62 m/s | Acceleration: 0.72 m/s2
+Time step: 22 | Velocity: 11.70 m/s | Acceleration: 0.88 m/s2
+Time step: 23 | Velocity: 11.83 m/s | Acceleration: 1.54 m/s2
+Time step: 24 | Velocity: 12.01 m/s | Acceleration: 2.01 m/s2
+Time step: 25 | Velocity: 12.22 m/s | Acceleration: 2.35 m/s2
+Time step: 26 | Velocity: 12.47 m/s | Acceleration: 2.58 m/s2
+Time step: 27 | Velocity: 12.74 m/s | Acceleration: 2.75 m/s2
+Time step: 28 | Velocity: 12.99 m/s | Acceleration: 2.32 m/s2
+Time step: 29 | Velocity: 13.19 m/s | Acceleration: 1.65 m/s2
+Time step: 30 | Velocity: 13.32 m/s | Acceleration: 0.99 m/s2
+Time step: 31 | Velocity: 13.40 m/s | Acceleration: 0.52 m/s2
+[014/020] evaluating vv_013
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 11.64 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 11.60 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 11.50 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 11.36 m/s | Acceleration: -1.63 m/s2
+Time step: 4 | Velocity: 11.21 m/s | Acceleration: -1.34 m/s2
+Time step: 5 | Velocity: 11.09 m/s | Acceleration: -0.95 m/s2
+Time step: 6 | Velocity: 11.01 m/s | Acceleration: -0.67 m/s2
+Time step: 7 | Velocity: 10.98 m/s | Acceleration: -0.11 m/s2
+Time step: 8 | Velocity: 10.98 m/s | Acceleration: 0.29 m/s2
+Time step: 9 | Velocity: 11.03 m/s | Acceleration: 0.57 m/s2
+Time step: 10 | Velocity: 11.12 m/s | Acceleration: 1.32 m/s2
+Time step: 11 | Velocity: 11.23 m/s | Acceleration: 0.76 m/s2
+Time step: 12 | Velocity: 11.29 m/s | Acceleration: 0.54 m/s2
+Time step: 13 | Velocity: 11.34 m/s | Acceleration: 0.38 m/s2
+Time step: 14 | Velocity: 11.39 m/s | Acceleration: 0.64 m/s2
+Time step: 15 | Velocity: 11.46 m/s | Acceleration: 0.82 m/s2
+Time step: 16 | Velocity: 11.53 m/s | Acceleration: 0.58 m/s2
+Time step: 17 | Velocity: 11.58 m/s | Acceleration: 0.41 m/s2
+Time step: 18 | Velocity: 11.64 m/s | Acceleration: 0.66 m/s2
+Time step: 19 | Velocity: 11.71 m/s | Acceleration: 0.84 m/s2
+Time step: 20 | Velocity: 11.80 m/s | Acceleration: 0.96 m/s2
+Time step: 21 | Velocity: 11.90 m/s | Acceleration: 1.05 m/s2
+Time step: 22 | Velocity: 12.04 m/s | Acceleration: 1.66 m/s2
+Time step: 23 | Velocity: 12.23 m/s | Acceleration: 2.10 m/s2
+Time step: 24 | Velocity: 12.45 m/s | Acceleration: 2.41 m/s2
+Time step: 25 | Velocity: 12.71 m/s | Acceleration: 2.63 m/s2
+Time step: 26 | Velocity: 12.98 m/s | Acceleration: 2.78 m/s2
+Time step: 27 | Velocity: 13.26 m/s | Acceleration: 2.89 m/s2
+Time step: 28 | Velocity: 13.50 m/s | Acceleration: 1.87 m/s2
+Time step: 29 | Velocity: 13.65 m/s | Acceleration: 1.15 m/s2
+Time step: 30 | Velocity: 13.71 m/s | Acceleration: 0.08 m/s2
+[015/020] evaluating vv_014
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 12.19 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 12.15 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 12.09 m/s | Acceleration: -0.52 m/s2
+Time step: 3 | Velocity: 12.06 m/s | Acceleration: -0.00 m/s2
+Time step: 4 | Velocity: 12.08 m/s | Acceleration: 0.36 m/s2
+Time step: 5 | Velocity: 12.13 m/s | Acceleration: 0.63 m/s2
+Time step: 6 | Velocity: 12.20 m/s | Acceleration: 0.81 m/s2
+Time step: 7 | Velocity: 12.27 m/s | Acceleration: 0.58 m/s2
+Time step: 8 | Velocity: 12.31 m/s | Acceleration: 0.23 m/s2
+Time step: 9 | Velocity: 12.29 m/s | Acceleration: -0.57 m/s2
+[FrenetPlanner] timestep=10: using max-risk fallback trajectory
+Time step: 10 | Velocity: 12.21 m/s | Acceleration: -1.14 m/s2
+[FrenetPlanner] timestep=11: using max-risk fallback trajectory
+Time step: 11 | Velocity: 12.07 m/s | Acceleration: -1.54 m/s2
+[FrenetPlanner] timestep=12: using max-risk fallback trajectory
+Time step: 12 | Velocity: 11.90 m/s | Acceleration: -1.83 m/s2
+[FrenetPlanner] timestep=13: using max-risk fallback trajectory
+Time step: 13 | Velocity: 11.71 m/s | Acceleration: -2.03 m/s2
+Time step: 14 | Velocity: 11.54 m/s | Acceleration: -1.44 m/s2
+Time step: 15 | Velocity: 11.43 m/s | Acceleration: -0.66 m/s2
+Time step: 16 | Velocity: 11.38 m/s | Acceleration: -0.47 m/s2
+Time step: 17 | Velocity: 11.34 m/s | Acceleration: -0.33 m/s2
+Time step: 18 | Velocity: 11.33 m/s | Acceleration: 0.13 m/s2
+Time step: 19 | Velocity: 11.36 m/s | Acceleration: 0.46 m/s2
+Time step: 20 | Velocity: 11.42 m/s | Acceleration: 0.69 m/s2
+Time step: 21 | Velocity: 11.52 m/s | Acceleration: 1.41 m/s2
+Time step: 22 | Velocity: 11.69 m/s | Acceleration: 1.92 m/s2
+Time step: 23 | Velocity: 11.90 m/s | Acceleration: 2.28 m/s2
+Time step: 24 | Velocity: 12.14 m/s | Acceleration: 2.54 m/s2
+Time step: 25 | Velocity: 12.40 m/s | Acceleration: 2.72 m/s2
+Time step: 26 | Velocity: 12.68 m/s | Acceleration: 2.85 m/s2
+Time step: 27 | Velocity: 12.97 m/s | Acceleration: 2.94 m/s2
+Time step: 28 | Velocity: 13.27 m/s | Acceleration: 3.01 m/s2
+Time step: 29 | Velocity: 13.57 m/s | Acceleration: 3.05 m/s2
+Time step: 30 | Velocity: 13.88 m/s | Acceleration: 3.08 m/s2
+[016/020] evaluating vv_015
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 11.50 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 11.46 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 11.36 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 11.21 m/s | Acceleration: -1.63 m/s2
+Time step: 4 | Velocity: 11.04 m/s | Acceleration: -1.89 m/s2
+Time step: 5 | Velocity: 10.84 m/s | Acceleration: -2.07 m/s2
+Time step: 6 | Velocity: 10.62 m/s | Acceleration: -2.21 m/s2
+Time step: 7 | Velocity: 10.40 m/s | Acceleration: -2.30 m/s2
+Time step: 8 | Velocity: 10.16 m/s | Acceleration: -2.37 m/s2
+Time step: 9 | Velocity: 9.92 m/s | Acceleration: -2.42 m/s2
+Time step: 10 | Velocity: 9.68 m/s | Acceleration: -2.45 m/s2
+Time step: 11 | Velocity: 9.43 m/s | Acceleration: -2.47 m/s2
+Time step: 12 | Velocity: 9.19 m/s | Acceleration: -2.49 m/s2
+Time step: 13 | Velocity: 8.94 m/s | Acceleration: -2.50 m/s2
+Time step: 14 | Velocity: 8.71 m/s | Acceleration: -1.96 m/s2
+Time step: 15 | Velocity: 8.54 m/s | Acceleration: -1.58 m/s2
+Time step: 16 | Velocity: 8.37 m/s | Acceleration: -1.85 m/s2
+Time step: 17 | Velocity: 8.17 m/s | Acceleration: -2.05 m/s2
+Time step: 18 | Velocity: 7.96 m/s | Acceleration: -2.19 m/s2
+Time step: 19 | Velocity: 7.73 m/s | Acceleration: -2.29 m/s2
+Time step: 20 | Velocity: 7.50 m/s | Acceleration: -2.36 m/s2
+Time step: 21 | Velocity: 7.26 m/s | Acceleration: -2.41 m/s2
+Time step: 22 | Velocity: 7.02 m/s | Acceleration: -2.44 m/s2
+[FrenetPlanner] timestep=23: using max-risk fallback trajectory
+Time step: 23 | Velocity: 6.77 m/s | Acceleration: -2.47 m/s2
+[FrenetPlanner] timestep=24: using max-risk fallback trajectory
+Time step: 24 | Velocity: 6.52 m/s | Acceleration: -2.49 m/s2
+[FrenetPlanner] timestep=25: using max-risk fallback trajectory
+Time step: 25 | Velocity: 6.27 m/s | Acceleration: -2.50 m/s2
+[FrenetPlanner] timestep=26: using max-risk fallback trajectory
+Time step: 26 | Velocity: 6.02 m/s | Acceleration: -2.51 m/s2
+[FrenetPlanner] timestep=27: using max-risk fallback trajectory
+Time step: 27 | Velocity: 5.77 m/s | Acceleration: -2.52 m/s2
+[FrenetPlanner] timestep=28: using max-risk fallback trajectory
+Time step: 28 | Velocity: 5.52 m/s | Acceleration: -2.52 m/s2
+[FrenetPlanner] timestep=29: using max-risk fallback trajectory
+Time step: 29 | Velocity: 5.24 m/s | Acceleration: -3.05 m/s2
+[FrenetPlanner] timestep=30: using max-risk fallback trajectory
+Time step: 30 | Velocity: 4.92 m/s | Acceleration: -3.35 m/s2
+[FrenetPlanner] timestep=31: using max-risk fallback trajectory
+Time step: 31 | Velocity: 4.58 m/s | Acceleration: -3.49 m/s2
+[FrenetPlanner] timestep=32: using max-risk fallback trajectory
+Time step: 32 | Velocity: 4.25 m/s | Acceleration: -3.01 m/s2
+[FrenetPlanner] timestep=33: using max-risk fallback trajectory
+Time step: 33 | Velocity: 3.95 m/s | Acceleration: -3.06 m/s2
+[FrenetPlanner] timestep=34: using max-risk fallback trajectory
+Time step: 34 | Velocity: 3.64 m/s | Acceleration: -3.02 m/s2
+Time step: 35 | Velocity: 3.33 m/s | Acceleration: -3.34 m/s2
+recorded/hand-crafted/vv_samples/vv_015.xml >>> Collision detected.
+[017/020] evaluating vv_016
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 12.10 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 12.06 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 11.96 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 11.82 m/s | Acceleration: -1.63 m/s2
+Time step: 4 | Velocity: 11.70 m/s | Acceleration: -0.79 m/s2
+Time step: 5 | Velocity: 11.68 m/s | Acceleration: 0.36 m/s2
+Time step: 6 | Velocity: 11.76 m/s | Acceleration: 1.17 m/s2
+Time step: 7 | Velocity: 11.86 m/s | Acceleration: 0.83 m/s2
+Time step: 8 | Velocity: 11.89 m/s | Acceleration: -0.14 m/s2
+Time step: 9 | Velocity: 11.84 m/s | Acceleration: -0.84 m/s2
+Time step: 10 | Velocity: 11.73 m/s | Acceleration: -1.33 m/s2
+Time step: 11 | Velocity: 11.58 m/s | Acceleration: -1.68 m/s2
+Time step: 12 | Velocity: 11.40 m/s | Acceleration: -1.92 m/s2
+[FrenetPlanner] timestep=13: using max-risk fallback trajectory
+Time step: 13 | Velocity: 11.20 m/s | Acceleration: -2.10 m/s2
+[FrenetPlanner] timestep=14: using max-risk fallback trajectory
+Time step: 14 | Velocity: 10.98 m/s | Acceleration: -2.23 m/s2
+Time step: 15 | Velocity: 10.75 m/s | Acceleration: -2.31 m/s2
+Time step: 16 | Velocity: 10.60 m/s | Acceleration: -0.73 m/s2
+Time step: 17 | Velocity: 10.56 m/s | Acceleration: -0.15 m/s2
+Time step: 18 | Velocity: 10.57 m/s | Acceleration: 0.26 m/s2
+Time step: 19 | Velocity: 10.64 m/s | Acceleration: 1.10 m/s2
+Time step: 20 | Velocity: 10.73 m/s | Acceleration: 0.78 m/s2
+Time step: 21 | Velocity: 10.85 m/s | Acceleration: 1.47 m/s2
+Time step: 22 | Velocity: 11.02 m/s | Acceleration: 1.96 m/s2
+Time step: 23 | Velocity: 11.23 m/s | Acceleration: 2.31 m/s2
+Time step: 24 | Velocity: 11.48 m/s | Acceleration: 2.56 m/s2
+Time step: 25 | Velocity: 11.69 m/s | Acceleration: 1.63 m/s2
+Time step: 26 | Velocity: 11.79 m/s | Acceleration: 0.43 m/s2
+[FrenetPlanner] timestep=27: using max-risk fallback trajectory
+Time step: 27 | Velocity: 11.87 m/s | Acceleration: 1.22 m/s2
+Time step: 28 | Velocity: 11.94 m/s | Acceleration: 0.13 m/s2
+Time step: 29 | Velocity: 11.99 m/s | Acceleration: 1.01 m/s2
+Time step: 30 | Velocity: 12.07 m/s | Acceleration: 0.53 m/s2
+Time step: 31 | Velocity: 12.11 m/s | Acceleration: 0.20 m/s2
+Time step: 32 | Velocity: 12.17 m/s | Acceleration: 1.06 m/s2
+Time step: 33 | Velocity: 12.31 m/s | Acceleration: 1.67 m/s2
+[018/020] evaluating vv_017
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 11.49 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 11.46 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 11.38 m/s | Acceleration: -0.70 m/s2
+Time step: 3 | Velocity: 11.29 m/s | Acceleration: -1.23 m/s2
+Time step: 4 | Velocity: 11.23 m/s | Acceleration: 0.04 m/s2
+Time step: 5 | Velocity: 11.28 m/s | Acceleration: 0.95 m/s2
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_015
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+Traceback (most recent call last):
+  File "test_fot_junction/evaluate_vv_batch.py", line 83, in eval_scenario
+    self._simulate()
+  File "/home/yanjun/NewDisk/method_branches/beliefplanning/planner/plannertools/scenario_handler.py", line 279, in _simulate
+    self._check_collision_simple(agent=agent, time_step=time_step)
+  File "/home/yanjun/NewDisk/method_branches/beliefplanning/planner/plannertools/scenario_handler.py", line 662, in _check_collision_simple
+    raise NoLocalTrajectoryFoundError("Collision detected.")
+commonroad_helper_functions.exceptions.NoLocalTrajectoryFoundError: Collision detected.
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_016
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_017
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+Traceback (most recent call last):
+  File "test_fot_junction/evaluate_vv_batch.py", line 83, in eval_scenario
+    self._simulate()
+  File "/home/yanjun/NewDisk/method_branches/beliefplanning/planner/plannertools/scenario_handler.py", line 279, in _simulate
+    self._check_collision_simple(agent=agent, time_step=time_step)
+  File "/home/yanjun/NewDisk/method_branches/beliefplanning/planner/plannertools/scenario_handler.py", line 662, in _check_collision_simple
+    raise NoLocalTrajectoryFoundError("Collision detected.")
+commonroad_helper_functions.exceptions.NoLocalTrajectoryFoundError: Collision detected.
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_018
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+Traceback (most recent call last):
+  File "test_fot_junction/evaluate_vv_batch.py", line 83, in eval_scenario
+    self._simulate()
+  File "/home/yanjun/NewDisk/method_branches/beliefplanning/planner/plannertools/scenario_handler.py", line 279, in _simulate
+    self._check_collision_simple(agent=agent, time_step=time_step)
+  File "/home/yanjun/NewDisk/method_branches/beliefplanning/planner/plannertools/scenario_handler.py", line 662, in _check_collision_simple
+    raise NoLocalTrajectoryFoundError("Collision detected.")
+commonroad_helper_functions.exceptions.NoLocalTrajectoryFoundError: Collision detected.
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/scenario/scenario.py:314: UserWarning: Not a valid scenario id: vv_019
+  warnings.warn('Not a valid scenario id: ' + benchmark_id)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/commonroad/common/file_reader.py:461: UserWarning: Unknown country: Default traffic sign IDs are used. Specified country: vv_
+  warnings.warn("Unknown country: Default traffic sign IDs are used. Specified country: " + country)
+/home/yanjun/NewDisk/beliefplanning/.venv38/lib/python3.8/site-packages/prediction/main.py:410: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  saved_model_dict = torch.load(self.model_path)
+Time step: 6 | Velocity: 11.38 m/s | Acceleration: 1.04 m/s2
+Time step: 7 | Velocity: 11.43 m/s | Acceleration: 0.00 m/s2
+Time step: 8 | Velocity: 11.39 m/s | Acceleration: -0.73 m/s2
+Time step: 9 | Velocity: 11.29 m/s | Acceleration: -1.25 m/s2
+Time step: 10 | Velocity: 11.15 m/s | Acceleration: -1.62 m/s2
+Time step: 11 | Velocity: 10.97 m/s | Acceleration: -1.89 m/s2
+Time step: 12 | Velocity: 10.77 m/s | Acceleration: -2.07 m/s2
+[FrenetPlanner] timestep=13: using max-risk fallback trajectory
+Time step: 13 | Velocity: 10.56 m/s | Acceleration: -2.21 m/s2
+[FrenetPlanner] timestep=14: using max-risk fallback trajectory
+Time step: 14 | Velocity: 10.33 m/s | Acceleration: -2.30 m/s2
+[FrenetPlanner] timestep=15: using max-risk fallback trajectory
+Time step: 15 | Velocity: 10.10 m/s | Acceleration: -2.37 m/s2
+Time step: 16 | Velocity: 9.94 m/s | Acceleration: -0.76 m/s2
+Time step: 17 | Velocity: 9.90 m/s | Acceleration: -0.18 m/s2
+Time step: 18 | Velocity: 9.90 m/s | Acceleration: 0.24 m/s2
+Time step: 19 | Velocity: 9.94 m/s | Acceleration: 0.54 m/s2
+Time step: 20 | Velocity: 10.03 m/s | Acceleration: 1.30 m/s2
+Time step: 21 | Velocity: 10.19 m/s | Acceleration: 1.84 m/s2
+Time step: 22 | Velocity: 10.40 m/s | Acceleration: 2.22 m/s2
+Time step: 23 | Velocity: 10.63 m/s | Acceleration: 2.50 m/s2
+Time step: 24 | Velocity: 10.89 m/s | Acceleration: 2.69 m/s2
+[FrenetPlanner] timestep=25: using max-risk fallback trajectory
+Time step: 25 | Velocity: 11.17 m/s | Acceleration: 2.83 m/s2
+[FrenetPlanner] timestep=26: using max-risk fallback trajectory
+Time step: 26 | Velocity: 11.37 m/s | Acceleration: 1.27 m/s2
+[FrenetPlanner] timestep=27: using max-risk fallback trajectory
+Time step: 27 | Velocity: 11.44 m/s | Acceleration: 0.17 m/s2
+[FrenetPlanner] timestep=28: using max-risk fallback trajectory
+Time step: 28 | Velocity: 11.42 m/s | Acceleration: -0.61 m/s2
+recorded/hand-crafted/vv_samples/vv_017.xml >>> Collision detected.
+[019/020] evaluating vv_018
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 12.37 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 12.34 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 12.27 m/s | Acceleration: -0.52 m/s2
+Time step: 3 | Velocity: 12.19 m/s | Acceleration: -1.10 m/s2
+Time step: 4 | Velocity: 12.06 m/s | Acceleration: -1.52 m/s2
+Time step: 5 | Velocity: 11.89 m/s | Acceleration: -1.81 m/s2
+Time step: 6 | Velocity: 11.70 m/s | Acceleration: -2.02 m/s2
+Time step: 7 | Velocity: 11.49 m/s | Acceleration: -2.17 m/s2
+Time step: 8 | Velocity: 11.27 m/s | Acceleration: -2.27 m/s2
+Time step: 9 | Velocity: 11.04 m/s | Acceleration: -2.35 m/s2
+Time step: 10 | Velocity: 10.80 m/s | Acceleration: -2.40 m/s2
+Time step: 11 | Velocity: 10.56 m/s | Acceleration: -2.44 m/s2
+Time step: 12 | Velocity: 10.31 m/s | Acceleration: -2.47 m/s2
+Time step: 13 | Velocity: 10.06 m/s | Acceleration: -2.49 m/s2
+Time step: 14 | Velocity: 9.81 m/s | Acceleration: -2.50 m/s2
+Time step: 15 | Velocity: 9.56 m/s | Acceleration: -2.51 m/s2
+Time step: 16 | Velocity: 9.31 m/s | Acceleration: -2.52 m/s2
+Time step: 17 | Velocity: 9.14 m/s | Acceleration: -0.87 m/s2
+Time step: 18 | Velocity: 9.12 m/s | Acceleration: 0.30 m/s2
+[FrenetPlanner] timestep=19: using max-risk fallback trajectory
+Time step: 19 | Velocity: 9.19 m/s | Acceleration: 1.13 m/s2
+[FrenetPlanner] timestep=20: using max-risk fallback trajectory
+Time step: 20 | Velocity: 9.28 m/s | Acceleration: 0.62 m/s2
+[FrenetPlanner] timestep=21: using max-risk fallback trajectory
+Time step: 21 | Velocity: 9.29 m/s | Acceleration: -0.29 m/s2
+[FrenetPlanner] timestep=22: using max-risk fallback trajectory
+Time step: 22 | Velocity: 9.23 m/s | Acceleration: -0.94 m/s2
+[FrenetPlanner] timestep=23: using max-risk fallback trajectory
+Time step: 23 | Velocity: 9.11 m/s | Acceleration: -1.40 m/s2
+[FrenetPlanner] timestep=24: using max-risk fallback trajectory
+Time step: 24 | Velocity: 8.95 m/s | Acceleration: -1.73 m/s2
+[FrenetPlanner] timestep=25: using max-risk fallback trajectory
+Time step: 25 | Velocity: 8.77 m/s | Acceleration: -1.96 m/s2
+[FrenetPlanner] timestep=26: using max-risk fallback trajectory
+Time step: 26 | Velocity: 8.56 m/s | Acceleration: -2.13 m/s2
+recorded/hand-crafted/vv_samples/vv_018.xml >>> Collision detected.
+[020/020] evaluating vv_019
+agent_planning_problem_id_assignment: {20088: 20095}
+Processing dynamic obstacle id: 20044
+Processing dynamic obstacle id: 20087
+Processing dynamic obstacle id: 20088
+--- Initializing prediction network ---
+Time step: 0 | Velocity: 12.31 m/s | Acceleration: 0.00 m/s2
+Time step: 1 | Velocity: 12.27 m/s | Acceleration: -0.73 m/s2
+Time step: 2 | Velocity: 12.17 m/s | Acceleration: -1.26 m/s2
+Time step: 3 | Velocity: 12.03 m/s | Acceleration: -1.63 m/s2
+Time step: 4 | Velocity: 11.91 m/s | Acceleration: -0.79 m/s2
+Time step: 5 | Velocity: 11.86 m/s | Acceleration: -0.19 m/s2
+Time step: 6 | Velocity: 11.86 m/s | Acceleration: 0.23 m/s2
+Time step: 7 | Velocity: 11.90 m/s | Acceleration: 0.53 m/s2
+Time step: 8 | Velocity: 11.99 m/s | Acceleration: 1.29 m/s2
+Time step: 9 | Velocity: 12.12 m/s | Acceleration: 1.29 m/s2
+Time step: 10 | Velocity: 12.19 m/s | Acceleration: 0.18 m/s2
+Time step: 11 | Velocity: 12.17 m/s | Acceleration: -0.61 m/s2
+[FrenetPlanner] timestep=12: using max-risk fallback trajectory
+Time step: 12 | Velocity: 12.11 m/s | Acceleration: -0.61 m/s2
+Time step: 13 | Velocity: 12.02 m/s | Acceleration: -1.17 m/s2
+Time step: 14 | Velocity: 11.97 m/s | Acceleration: 0.09 m/s2
+Time step: 15 | Velocity: 11.97 m/s | Acceleration: 0.06 m/s2
+Time step: 16 | Velocity: 11.98 m/s | Acceleration: 0.04 m/s2
+Time step: 17 | Velocity: 11.94 m/s | Acceleration: -0.70 m/s2
+Time step: 18 | Velocity: 11.88 m/s | Acceleration: -0.68 m/s2
+Time step: 19 | Velocity: 11.82 m/s | Acceleration: -0.48 m/s2
+Time step: 20 | Velocity: 11.78 m/s | Acceleration: -0.34 m/s2
+Time step: 21 | Velocity: 11.77 m/s | Acceleration: 0.12 m/s2
+Time step: 22 | Velocity: 11.79 m/s | Acceleration: 0.45 m/s2
+Time step: 23 | Velocity: 11.85 m/s | Acceleration: 0.69 m/s2
+Time step: 24 | Velocity: 11.96 m/s | Acceleration: 1.41 m/s2
+Time step: 25 | Velocity: 12.13 m/s | Acceleration: 1.92 m/s2
+Time step: 26 | Velocity: 12.34 m/s | Acceleration: 2.28 m/s2
+Time step: 27 | Velocity: 12.58 m/s | Acceleration: 2.54 m/s2
+Time step: 28 | Velocity: 12.84 m/s | Acceleration: 2.72 m/s2
+Time step: 29 | Velocity: 13.12 m/s | Acceleration: 2.85 m/s2
+Time step: 30 | Velocity: 13.36 m/s | Acceleration: 2.02 m/s2
+Time step: 31 | Velocity: 13.53 m/s | Acceleration: 1.44 m/s2
+Time step: 32 | Velocity: 13.65 m/s | Acceleration: 0.84 m/s2
+Saved summary to /home/yanjun/NewDisk/beliefplanning/planner/Frenet/results/method_compare_20_v2/robust_single/metrics_summary.json
+Saved per-scenario metrics to /home/yanjun/NewDisk/beliefplanning/planner/Frenet/results/method_compare_20_v2/robust_single/metrics_per_scenario.csv
+Saved GIFs to /home/yanjun/NewDisk/beliefplanning/planner/Frenet/results/method_compare_20_v2/robust_single/gifs
