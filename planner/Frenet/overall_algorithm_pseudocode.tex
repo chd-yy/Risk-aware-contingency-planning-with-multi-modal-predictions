@@ -1,0 +1,136 @@
+% 说明：
+% 1) 本文件为可直接插入论文正文的伪代码片段；
+% 2) 需在导言区引入：
+%    \usepackage{algorithm}
+%    \usepackage{algpseudocode}
+% 3) 若需中文算法标题，可配合 xeCJK / ctex 使用。
+
+\begin{algorithm}[t]
+\caption{面向多模态交互场景的共享段--条件分支一体化滚动规划算法}
+\label{alg:belief_contingency_planning}
+\footnotesize
+\begin{algorithmic}[1]
+\Require 当前场景 $\mathcal{S}_t$，自车状态 $x_t^{e}$，参考路径 $\Gamma$，动态障碍物集合 $\mathcal{O}_t$；
+\Statex \hspace{\algorithmicindent}共享段采样参数 $\Theta_{\mathrm{sh}}$，分支段采样参数 $\Theta_{\mathrm{br}}$；
+\Statex \hspace{\algorithmicindent}风险参数 $\Theta_{\mathrm{risk}}$，代价权重 $\Theta_{\mathrm{cost}}$；
+\Statex \hspace{\algorithmicindent}可信水平 $\alpha$，可分性阈值 $\delta_{\mathrm{sep}}$
+\Ensure 当前周期输出的最优共享段轨迹 $\tau_t^{\star}$ 及其首个控制量
+
+\State 初始化障碍物意图信念缓存 $\mathcal{B}_{t-1}$、联合场景历史缓存与可恢复性统计量
+\While{规划任务未终止}
+    \State 根据当前自车状态 $x_t^{e}$ 计算 Frenet 初始状态 $(s_t,\dot{s}_t,\ddot{s}_t,d_t,\dot{d}_t,\ddot{d}_t)$
+    \State 识别感兴趣动态障碍物集合 $\mathcal{O}_t^{\mathrm{vis}} \subseteq \mathcal{O}_t$
+
+    \Comment{步骤 1：多模态行为预测与单车后验更新}
+    \ForAll{$o_i \in \mathcal{O}_t^{\mathrm{vis}}$}
+        \State 生成基准单模态预测 $\hat{\mathbf{z}}_i^{\mathrm{base}}$
+        \State 构造两类行为模式轨迹：$\lambda_i \in \{\mathrm{yield},\mathrm{challenge}\}$
+        \State 形成障碍物 $i$ 的高斯混合预测分布
+        \[
+            p(z_i \mid \lambda_i) = \mathcal{N}\!\left(\mu_{i,\lambda_i}, \Sigma_{i,\lambda_i}\right)
+        \]
+        \State 结合当前观测进行贝叶斯更新，得到单车模式后验
+        \[
+            b_i^t(\lambda_i) \propto p(o_i^t \mid \lambda_i)\, b_i^{t-1}(\lambda_i)
+        \]
+        \State 保存更新后的单车 belief：$\mathcal{B}_t(i) \gets b_i^t$
+    \EndFor
+
+    \Comment{步骤 2：联合场景后验与可信场景集构造}
+    \State 基于所有多模态障碍物的模式组合构造联合场景集合
+    \[
+        \Omega_t = \prod_{i} \Lambda_i
+    \]
+    \ForAll{$\omega \in \Omega_t$}
+        \State 计算联合场景后验权重
+        \[
+            w_t(\omega) \propto \prod_i b_i^t(\lambda_i^\omega)
+        \]
+    \EndFor
+    \State 对 $\{w_t(\omega)\}_{\omega \in \Omega_t}$ 归一化
+    \State 按后验权重从大到小排序，提取累计概率质量不小于 $1-\alpha$ 的最小可信场景集 $\Omega_t^{c}$
+
+    \Comment{步骤 3：在线自适应分支时刻选择}
+    \State 构造候选分支时刻集合 $\mathcal{T}_{\mathrm{cand}}=\{0.4,0.5,\ldots,1.4\}\,\mathrm{s}$
+    \ForAll{$t_b \in \mathcal{T}_{\mathrm{cand}}$}
+        \State 在预测步索引 $k_b=\lfloor t_b/\Delta t \rceil$ 处计算可信场景集整体可分性
+        \[
+            D_t(t_b) = \min_{\omega_a,\omega_b \in \Omega_t^{c},\, \omega_a \neq \omega_b}
+            D_{\mathrm{Bhat}}\!\left(p(\cdot\mid\omega_a,k_b),\, p(\cdot\mid\omega_b,k_b)\right)
+        \]
+    \EndFor
+    \State 选择最早满足 $D_t(t_b)\ge \delta_{\mathrm{sep}}$ 的候选时刻作为共享段时域 $t_b^{\star}$
+    \If{不存在满足条件的 $t_b$}
+        \State $t_b^{\star} \gets \max(\mathcal{T}_{\mathrm{cand}})$
+    \EndIf
+
+    \Comment{步骤 4：共享段候选轨迹生成与筛选}
+    \State 依据 $\Theta_{\mathrm{sh}}$ 在时域 $[0,t_b^{\star}]$ 内采样末端速度与横向偏移
+    \State 调用 Frenet 多项式轨迹生成器，得到共享段候选集合 $\mathcal{T}_{\mathrm{sh}}$
+    \ForAll{$\tau^{\mathrm{sh}} \in \mathcal{T}_{\mathrm{sh}}$}
+        \State 检查运动学、动力学与道路约束
+        \State 计算共享段风险与轨迹级碰撞概率上界
+        \State 根据单车 belief 对共享段风险进行模式加权
+        \State 计算共享段代价
+        \[
+            J_{\mathrm{sh}}(\tau^{\mathrm{sh}})
+            = \sum_{\omega \in \Omega_t^{c}} w_t(\omega)\, c_r(\tau^{\mathrm{sh}},\omega)
+            + c_d + c_v + c_p + c_j
+        \]
+    \EndFor
+    \State 保留满足风险阈值与约束条件的共享段有效集合 $\hat{\mathcal{T}}_{\mathrm{sh}}$
+    \State 按 $J_{\mathrm{sh}}$ 升序排序 $\hat{\mathcal{T}}_{\mathrm{sh}}$
+
+    \Comment{步骤 5：可信场景条件分支生成与可恢复性判定}
+    \State 初始化完整计划候选集 $\Pi_t \gets \varnothing$
+    \ForAll{$\tau^{\mathrm{sh}} \in \hat{\mathcal{T}}_{\mathrm{sh}}$}
+        \State 记共享段末状态为 $x_b$
+        \State 初始化分支计划容器 $\pi \gets \{\tau^{\mathrm{sh}}\}$
+        \State 置可恢复标志 $\kappa(\pi)\gets 1$
+        \ForAll{$\omega \in \Omega_t^{c}$}
+            \State 以 $x_b$ 为初值，依据 $\Theta_{\mathrm{br}}$ 生成场景 $\omega$ 下的分支候选集合 $\mathcal{T}_{\mathrm{br}}(\omega \mid x_b)$
+            \ForAll{$\tau^{\mathrm{br}} \in \mathcal{T}_{\mathrm{br}}(\omega \mid x_b)$}
+                \State 检查拼接后的完整轨迹是否满足连续性约束、运动学约束、道路约束与风险约束
+                \State 计算该场景下的分支段代价 $J_{\mathrm{br}}(\tau^{\mathrm{br}},\omega)$
+            \EndFor
+            \If{$\mathcal{T}_{\mathrm{br}}(\omega \mid x_b)$ 中存在可行分支}
+                \State 取最优分支
+                \[
+                    \tau_{\omega}^{\star} \gets \arg\min_{\tau^{\mathrm{br}} \in \mathcal{T}_{\mathrm{br}}(\omega \mid x_b)}
+                    J_{\mathrm{br}}(\tau^{\mathrm{br}},\omega)
+                \]
+                \State $\pi \gets \pi \cup \{\tau_{\omega}^{\star}\}$
+            \Else
+                \State $\kappa(\pi)\gets 0$
+                \State \textbf{break}
+            \EndIf
+        \EndFor
+
+        \Comment{步骤 6：共享段--分支段总代价合成}
+        \If{$\kappa(\pi)=1$}
+            \State 计算完整计划总代价
+            \[
+                J(\pi)=J_{\mathrm{sh}}(\tau^{\mathrm{sh}})
+                + \sum_{\omega\in\Omega_t^{c}} w_t(\omega)\, J_{\mathrm{br}}(\tau_{\omega}^{\star},\omega)
+            \]
+            \State 将 $\pi$ 加入完整计划候选集：$\Pi_t \gets \Pi_t \cup \{\pi\}$
+        \EndIf
+    \EndFor
+
+    \Comment{步骤 7：最优计划选择与滚动执行}
+    \If{$\Pi_t = \varnothing$}
+        \State 触发后备策略：选择动态可行且风险最小的共享段备选轨迹
+        \State 记该轨迹为 $\tau_t^{\star}$
+    \Else
+        \State 选择总代价最小的完整计划
+        \[
+            \pi_t^{\star} \gets \arg\min_{\pi \in \Pi_t} J(\pi)
+        \]
+        \State 取其共享段作为当前执行轨迹：$\tau_t^{\star} \gets \tau_{\mathrm{sh}}(\pi_t^{\star})$
+    \EndIf
+    \State 执行 $\tau_t^{\star}$ 的首个控制量，并推进系统到下一时刻 $t\leftarrow t+1$
+    \State 基于最新观测刷新障碍物状态、场景 belief 与历史缓存
+\EndWhile
+\end{algorithmic}
+\end{algorithm}
+

@@ -8,6 +8,7 @@ from commonroad.scenario.scenario import Scenario
 
 # CommonRoad 通用绘图接口：可以画 scenario / planning_problem / obstacle 等对象
 from commonroad.visualization.draw_dispatch_cr import draw_object
+from commonroad.visualization.scenario import draw_car
 
 # 一些辅助可视化函数：
 # - get_max_frames_from_scenario: 从 scenario 中估计最大帧数
@@ -23,10 +24,12 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.animation as animation
+from matplotlib import font_manager
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 # matplotlib.patches.Polygon 用于画可达集、多边形区域等
 from matplotlib.patches import Polygon
+from matplotlib.lines import Line2D
 
 import sys
 import os
@@ -39,6 +42,93 @@ warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
 # 全局默认 figure 尺寸
 plt.rcParams["figure.figsize"] = (8, 8)
+plt.rcParams["font.size"] = 15
+plt.rcParams["legend.fontsize"] = 15
+plt.rcParams["axes.labelsize"] = 15
+plt.rcParams["axes.titlesize"] = 16
+plt.rcParams["xtick.labelsize"] = 14
+plt.rcParams["ytick.labelsize"] = 14
+ACTIVE_LATIN_FONT = None
+ACTIVE_CHINESE_FONT = None
+ACTIVE_LATIN_FONT_PATH = None
+ACTIVE_CHINESE_FONT_PATH = None
+
+
+def _configure_plot_fonts():
+    global ACTIVE_LATIN_FONT, ACTIVE_CHINESE_FONT
+    global ACTIVE_LATIN_FONT_PATH, ACTIVE_CHINESE_FONT_PATH
+
+    def _load_font(candidate_paths):
+        for path in candidate_paths:
+            if path and os.path.exists(path):
+                try:
+                    font_manager.fontManager.addfont(path)
+                    font_name = font_manager.FontProperties(fname=path).get_name()
+                    return font_name, path
+                except Exception:
+                    continue
+        return None, None
+
+    latin_font, latin_font_path = _load_font(
+        [
+            "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman.ttf",
+            "/usr/share/fonts/truetype/msttcorefonts/times.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+        ]
+    )
+    if latin_font is None:
+        latin_font = "DejaVu Serif"
+
+    chinese_serif_font, chinese_serif_font_path = _load_font(
+        [
+            "/usr/share/fonts/truetype/arphic/uming.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+        ]
+    )
+    chinese_sans_font, chinese_sans_font_path = _load_font(
+        [
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+            "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        ]
+    )
+
+    family_stack = [latin_font]
+    if chinese_serif_font is not None:
+        family_stack.append(chinese_serif_font)
+    if chinese_sans_font is not None and chinese_sans_font not in family_stack:
+        family_stack.append(chinese_sans_font)
+
+    ACTIVE_LATIN_FONT = latin_font
+    ACTIVE_CHINESE_FONT = chinese_serif_font or chinese_sans_font or "None"
+    ACTIVE_LATIN_FONT_PATH = latin_font_path
+    ACTIVE_CHINESE_FONT_PATH = chinese_serif_font_path or chinese_sans_font_path
+
+    plt.rcParams["font.family"] = family_stack
+    plt.rcParams["font.serif"] = family_stack + list(plt.rcParams.get("font.serif", []))
+    plt.rcParams["font.sans-serif"] = family_stack + list(
+        plt.rcParams.get("font.sans-serif", [])
+    )
+    plt.rcParams["mathtext.fontset"] = "custom"
+    plt.rcParams["mathtext.rm"] = latin_font
+    plt.rcParams["mathtext.it"] = f"{latin_font}:italic"
+    plt.rcParams["mathtext.bf"] = f"{latin_font}:bold"
+    plt.rcParams["mathtext.sf"] = latin_font
+    plt.rcParams["axes.unicode_minus"] = False
+
+
+_configure_plot_fonts()
+print(f"[VisualizationFont] 当前英文实际字体名: {ACTIVE_LATIN_FONT}")
+print(f"[VisualizationFont] 当前中文实际字体名: {ACTIVE_CHINESE_FONT}")
+
+
+def _get_chinese_font_properties(size=None):
+    if ACTIVE_CHINESE_FONT_PATH and os.path.exists(ACTIVE_CHINESE_FONT_PATH):
+        return font_manager.FontProperties(fname=ACTIVE_CHINESE_FONT_PATH, size=size)
+    if ACTIVE_CHINESE_FONT not in (None, "None"):
+        return font_manager.FontProperties(family=ACTIVE_CHINESE_FONT, size=size)
+    return None
 
 # 将项目根目录加入 sys.path，方便做绝对导入
 module_path = os.path.dirname(
@@ -64,6 +154,43 @@ from prediction.utils.visualization import draw_uncertain_predictions
 i = 0
 PLOT_SNAPSHOTS = []
 _LAST_SNAPSHOT_ANIMATION = None
+EGO_ICON_COLOR = "#1f77b4"
+
+
+def _normalize_marked_vehicle_ids(marked_vehicle):
+    if marked_vehicle is None:
+        return []
+    if isinstance(marked_vehicle, (list, tuple, set, np.ndarray)):
+        return [int(vehicle_id) for vehicle_id in marked_vehicle if vehicle_id is not None]
+    return [int(marked_vehicle)]
+
+
+def _state_for_visualization(obstacle, time_step: int):
+    if obstacle is None:
+        return None
+    if int(time_step) == 0:
+        return getattr(obstacle, "initial_state", None)
+    prediction = getattr(obstacle, "prediction", None)
+    trajectory = getattr(prediction, "trajectory", None)
+    if trajectory is None:
+        return None
+    return trajectory.state_at_time_step(time_step)
+
+
+def _draw_custom_vehicle_icon(ax, obstacle, time_step: int, color: str, scale: float = 2.5, zorder: int = 35):
+    state = _state_for_visualization(obstacle=obstacle, time_step=time_step)
+    if state is None:
+        return
+    draw_car(
+        state.position[0],
+        state.position[1],
+        state.orientation,
+        scale,
+        ax,
+        zorder=zorder,
+        carcolor=color,
+        lw=0.8,
+    )
 
 
 def capture_plot_snapshot(ax=None):
@@ -744,77 +871,120 @@ def draw_all_plans(
             show_label,
         )
 
-    has_best_traj = best_traj is not None and len(best_traj) != 0
+    def _is_traj_obj(obj):
+        return (
+            hasattr(obj, "x")
+            and hasattr(obj, "y")
+            and obj.x is not None
+            and obj.y is not None
+            and len(obj.x) > 0
+            and len(obj.y) > 0
+        )
 
-    if has_best_traj:
-        # x and y axis description
+    has_valid_traj = valid_traj is not None and len(valid_traj) > 0
+    has_best_traj = best_traj is not None and len(best_traj) > 0
+
+    if has_valid_traj or has_best_traj:
         ax.set_xlabel("x(m)")
         ax.set_ylabel("y(m)")
 
-        # align ego position to the center
-        # ax.set_xlim(
-        #     valid_traj[0]['shared_plan'].x[0] - animation_area / 6,
-        #     valid_traj[0]['shared_plan'].x[0] + animation_area - 15
-        # )
+    all_shared_trajs = []
+    all_branch_trajs = []
+    if has_valid_traj:
+        def _append_branch_candidates(candidate_value):
+            if _is_traj_obj(candidate_value):
+                all_branch_trajs.append(candidate_value)
+                return
+            if isinstance(candidate_value, dict):
+                for nested_value in candidate_value.values():
+                    _append_branch_candidates(nested_value)
+                return
+            if isinstance(candidate_value, (list, tuple)):
+                for item in candidate_value:
+                    _append_branch_candidates(item)
 
-        # 同样硬编码 y 范围，确保画面居中
+        for plan_dict in valid_traj:
+            if not isinstance(plan_dict, dict):
+                continue
+            shared_plan = plan_dict.get("shared_plan")
+            if _is_traj_obj(shared_plan):
+                all_shared_trajs.append(shared_plan)
+            for key, branch_plan in plan_dict.items():
+                if key == "shared_plan":
+                    continue
+                _append_branch_candidates(branch_plan)
+
+    if len(all_shared_trajs) > 0:
+        ref_shared = all_shared_trajs[0]
         ax.set_xlim(
-            -45, 40
+            ref_shared.x[0] - animation_area,
+            ref_shared.x[0] + animation_area,
         )
         ax.set_ylim(
-            -37, 24
+            ref_shared.y[0] - animation_area / 2,
+            ref_shared.y[0] + animation_area / 2,
         )
-        # 第一套 colorset 被第二套覆盖
-        colorset = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray',
-                    'tab:olive', 'tab:cyan', 'y', 'm', 'c', 'g']
 
-        # 实际使用的是这一套
-        colorset = ['tab:pink', 'tab:blue', 'tab:purple', 'tab:olive', 'm', 'tab:cyan']
+    for idx, shared_plan in enumerate(all_shared_trajs):
+        ax.plot(
+            shared_plan.x,
+            shared_plan.y,
+            alpha=0.22,
+            color="k",
+            lw=1.2,
+            ls="-",
+            zorder=24,
+            label="所有有效共享轨迹" if idx == 0 else None,
+            picker=picker,
+        )
 
-        # TODO(yanjun): Draw all possible trajectories with their costs as colors
-        # 先把所有 shared_plan 用淡黑色画出来
-        # j = 0
-        for p in reversed(best_traj):
-            ax.plot(p['shared_plan'].x, p['shared_plan'].y, alpha=0.1, color='k', zorder=25, picker=picker)
-            # j = j + 1
-            # print(f"Loop count: {j}") 
+    branch_color = "#7fb3ff"
+    for idx, branch_plan in enumerate(all_branch_trajs):
+        ax.plot(
+            branch_plan.x,
+            branch_plan.y,
+            alpha=0.22,
+            color=branch_color,
+            lw=1.4,
+            ls="--",
+            zorder=23,
+            label="所有有效分支轨迹" if idx == 0 else None,
+            picker=picker,
+        )
 
-        # 再把每个 plan 里的 contingent trajectories 画出来
-        for i in range(len(best_traj)):
-            keys_list = list(best_traj[i])
-            j = 1
-            for key in keys_list[1:-1]:
-                if key not in best_traj[i]:
-                    continue
-                if not hasattr(best_traj[i][key], "x") or not hasattr(best_traj[i][key], "d"):
-                    continue
-                if best_traj[i][key].d is None or len(best_traj[i][key].d) == 0:
-                    continue
-                if abs(best_traj[i][key].d[-1] + 3.6) < 0.1:
-                    j = 0
-                elif abs(best_traj[i][key].d[-1] + 2.88) < 0.1:
-                    j = 1
-                elif abs(best_traj[i][key].d[-1] + 2.16) < 0.1:
-                    j = 2
-                elif abs(best_traj[i][key].d[-1] + 1.44) < 0.1:
-                    j = 3
-                elif abs(best_traj[i][key].d[-1] + 0.72) < 0.1:
-                    j = 4
-                elif abs(best_traj[i][key].d[-1]) < 0.1:
-                    j = 5
-
+    if has_best_traj:
+        best_plan = best_traj[0]
+        if isinstance(best_plan, dict):
+            best_shared_plan = best_plan.get("shared_plan")
+            if _is_traj_obj(best_shared_plan):
                 ax.plot(
-                    best_traj[i][key].x,
-                    best_traj[i][key].y,
-                    alpha=0.05,
-                    color=colorset[j],
-                    zorder=25,
-                    label="Best trajectory",
+                    best_shared_plan.x,
+                    best_shared_plan.y,
+                    alpha=1.0,
+                    linewidth=3.0,
+                    color="tab:green",
+                    zorder=30,
+                    label="最优共享轨迹",
                     picker=picker,
                 )
-                j += 1
-                if j == len(colorset):
-                    j = 0
+
+            best_branch_idx = 0
+            for key, branch_plan in best_plan.items():
+                if key == "shared_plan":
+                    continue
+                if not _is_traj_obj(branch_plan):
+                    continue
+                ax.plot(
+                    branch_plan.x,
+                    branch_plan.y,
+                    alpha=0.95,
+                    color="tab:blue",
+                    linewidth=2.0,
+                    zorder=29,
+                    label="最优分支轨迹" if best_branch_idx == 0 else None,
+                    picker=picker,
+                )
+                best_branch_idx += 1
 
     if base_predictions is not None:
         draw_base_predictions(
@@ -823,60 +993,8 @@ def draw_all_plans(
             picker=picker,
         )
 
-    if has_best_traj:
-        ax.plot(
-            best_traj[0]['shared_plan'].x,
-            best_traj[0]['shared_plan'].y,
-            alpha=1.0,
-            linewidth=3.0,
-            color='tab:green',
-            zorder=25,
-            picker=picker,
-        )
-
-        keys_list = list(best_traj[0])
-        for idx, key in enumerate(keys_list[1:-1]):
-            if key not in best_traj[0]:
-                continue
-            if not hasattr(best_traj[0][key], "x"):
-                continue
-            ax.plot(
-                best_traj[0][key].x,
-                best_traj[0][key].y,
-                alpha=1.0,
-                color='tab:blue',
-                linewidth=2.0,
-                zorder=25,
-                label="Best trajectory" if idx == 0 else None,
-                picker=picker,
-            )
-
     if predictions is not None:
-        prediction_plot_list = list(predictions.values())[:10]
-        for pred in prediction_plot_list:
-            pos_list = pred.get("pos_list")
-            if pos_list is None:
-                continue
-            if isinstance(pos_list, np.ndarray):
-                pos_list = [pos_list]
-            elif not isinstance(pos_list, list):
-                continue
-
-            for traj_xy in pos_list[:20]:
-                traj_xy = np.asarray(traj_xy, dtype=float)
-                if traj_xy.ndim != 2 or traj_xy.shape[1] != 2:
-                    continue
-                ax.plot(
-                    traj_xy[:, 0],
-                    traj_xy[:, 1],
-                    alpha=0.5,
-                    color='tab:gray',
-                    lw=0.5,
-                    zorder=25,
-                    marker='o',
-                    markersize=2,
-                    picker=picker,
-                )
+        draw_uncertain_predictions(predictions, ax)
 
     if adaptive_branching_info is not None:
         draw_adaptive_branching_overlay(
@@ -884,17 +1002,70 @@ def draw_all_plans(
             adaptive_branching_info=adaptive_branching_info,
         )
 
+    legend_handles = []
+    if len(all_shared_trajs) > 0:
+        legend_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color="k",
+                lw=3.0,
+                ls="-",
+                alpha=0.95,
+                label="所有有效共享轨迹",
+            )
+        )
+    if len(all_branch_trajs) > 0:
+        legend_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color="#2f6fd6",
+                lw=3.0,
+                ls="--",
+                alpha=0.95,
+                label="所有有效分支轨迹",
+            )
+        )
+    if has_best_traj:
+        legend_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color="tab:green",
+                lw=3.0,
+                ls="-",
+                alpha=1.0,
+                label="最优共享轨迹",
+            )
+        )
+        legend_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color="tab:blue",
+                lw=3.0,
+                ls="-",
+                alpha=1.0,
+                label="最优分支轨迹",
+            )
+        )
 
-    # if predictions is not None:
-        # breakpoint()
-        # for prediction in predictions:
-        # draw_uncertain_predictions(predictions, ax)
-
-    # show the figure until the next one ins ready
-    # plt.savefig(str(i).zfill(4) + ".png")
-    # i += 1
-    if ax.figure is not None and ax.figure.canvas is not None:
-        ax.figure.canvas.draw_idle()
+    if len(legend_handles) > 0:
+        legend_prop = _get_chinese_font_properties(size=plt.rcParams["legend.fontsize"])
+        legend = ax.legend(
+            handles=legend_handles,
+            loc="upper left",
+            framealpha=1.0,
+            handlelength=2.8,
+            borderpad=0.8,
+            labelspacing=0.6,
+            prop=legend_prop,
+        )
+        legend.set_zorder(1000)
+        legend.get_frame().set_edgecolor("black")
+        legend.get_frame().set_linewidth(1.6)
+        legend.get_frame().set_facecolor("white")
     capture_plot_snapshot(ax=ax)
     plt.pause(0.000001)
 
@@ -1542,61 +1713,81 @@ def draw_scenario(
     ax.set_aspect("equal")
 
     # 画 planning problem（起点/终点/目标区域等）
-    if planning_problem is not None:
-        draw_object(planning_problem, ax=ax)
+    # if planning_problem is not None:
+    #     draw_object(planning_problem, ax=ax)
 
-    # 高亮 scenario.dynamic_obstacles
+    # 高亮 scenario.dynamic_obstacles，并让 ego / obstacle 使用不同 icon
     if marked_vehicle is not None:
-        draw_object(
-            # obj=scenario.obstacle_by_id(marked_vehicle),
-            obj=scenario.dynamic_obstacles,
-            draw_params={
-                "time_begin": time_step,
-                "facecolor": "g",
-                "dynamic_obstacle": {
-                    "draw_shape": False,
-                    "draw_bounding_box": False,
-                    "draw_icon": True,
-                },
-            },
-        )
+        marked_vehicle_ids = set(_normalize_marked_vehicle_ids(marked_vehicle))
+        obstacle_vehicles = [
+            obstacle
+            for obstacle in scenario.dynamic_obstacles
+            if obstacle.obstacle_id not in marked_vehicle_ids
+        ]
 
-    # 画全局路径
-    if global_path is not None:
-        ax.plot(
-            global_path[:, 0],
-            global_path[:, 1],
-            color="turquoise",   # 青绿色
-            alpha=0.5,           # 半透明 (0~1，越小越透明)
-            zorder=20,
-            label="Global path",
-        )
-        if global_path_after_goal is not None:
-            ax.plot(
-                global_path_after_goal[:, 0],
-                global_path_after_goal[:, 1],
-                color="blue",
-                zorder=20,
-                linestyle="--",
+        if obstacle_vehicles:
+            draw_object(
+                obj=obstacle_vehicles,
+                draw_params={
+                    "time_begin": time_step,
+                    "facecolor": "g",
+                    "dynamic_obstacle": {
+                        "draw_shape": False,
+                        "draw_bounding_box": False,
+                        "draw_icon": True,
+                    },
+                },
+                ax=ax,
             )
 
-    # 画 ego 已走过的轨迹
-    if driven_traj is not None:
-        x = [state.position[0] for state in driven_traj]
-        y = [state.position[1] for state in driven_traj]
-        ax.plot(x, y, color="green", zorder=25, label="Driven trajectory")
+        for ego_id in marked_vehicle_ids:
+            ego_vehicle = scenario.obstacle_by_id(ego_id)
+            if ego_vehicle is None:
+                continue
+            _draw_custom_vehicle_icon(
+                ax=ax,
+                obstacle=ego_vehicle,
+                time_step=time_step,
+                color=EGO_ICON_COLOR,
+                zorder=36,
+            )
 
-    # 画可视区域
-    if visible_area is not None:
-        if visible_area.geom_type == "MultiPolygon":
-            for geom in visible_area.geoms:
-                ax.fill(*geom.exterior.xy, "g", alpha=0.2, zorder=10)
-        elif visible_area.geom_type == "Polygon":
-            ax.fill(*visible_area.exterior.xy, "g", alpha=0.2, zorder=10)
-        else:
-            for obj in visible_area:
-                if obj.geom_type == "Polygon":
-                    ax.fill(*obj.exterior.xy, "g", alpha=0.2, zorder=10)
+    # 画全局路径
+    # if global_path is not None:
+    #     ax.plot(
+    #         global_path[:, 0],
+    #         global_path[:, 1],
+    #         color="turquoise",   # 青绿色
+    #         alpha=0.5,           # 半透明 (0~1，越小越透明)
+    #         zorder=20,
+    #         label="Global path",
+    #     )
+    #     if global_path_after_goal is not None:
+    #         ax.plot(
+    #             global_path_after_goal[:, 0],
+    #             global_path_after_goal[:, 1],
+    #             color="blue",
+    #             zorder=20,
+    #             linestyle="--",
+    #         )
+
+    # # 画 ego 已走过的轨迹
+    # if driven_traj is not None:
+    #     x = [state.position[0] for state in driven_traj]
+    #     y = [state.position[1] for state in driven_traj]
+    #     ax.plot(x, y, color="green", zorder=25, label="Driven trajectory")
+
+    # # 画可视区域
+    # if visible_area is not None:
+    #     if visible_area.geom_type == "MultiPolygon":
+    #         for geom in visible_area.geoms:
+    #             ax.fill(*geom.exterior.xy, "g", alpha=0.2, zorder=10)
+    #     elif visible_area.geom_type == "Polygon":
+    #         ax.fill(*visible_area.exterior.xy, "g", alpha=0.2, zorder=10)
+    #     else:
+    #         for obj in visible_area:
+    #             if obj.geom_type == "Polygon":
+    #                 ax.fill(*obj.exterior.xy, "g", alpha=0.2, zorder=10)
 
     # 标题中显示目标时间范围
     # if planning_problem is not None and hasattr(planning_problem.goal.state_list[0], "time_step"):

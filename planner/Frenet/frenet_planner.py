@@ -42,6 +42,8 @@ import numpy as np
 import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
+from scipy.interpolate import make_interp_spline
 # CommonRoad 核心对象
 from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.scenario.scenario import Scenario
@@ -231,6 +233,11 @@ class FrenetPlanner(Planner):
             "candidate_times": [],
             "separability_series": [],
             "selection_reason": [],
+        }
+        self.execution_dynamics_history = {
+            "timesteps": [],
+            "ego_speed_mps": [],
+            "risk_indicator": [],
         }
 
         self.long_jerk = []  # 纵向 jerk 记录(调试舒适性)
@@ -837,12 +844,15 @@ class FrenetPlanner(Planner):
                 t_list = self.contingency_parameters["t_list"]
 
                 ft_final_list = []       # 每个 shared 轨迹对应一个 final_plan(字典)
-                ft_all_plans_list = []   # 用于绘图:保存 shared + 所有 contingent 候选
+                ft_all_plans_list = []   # 用于绘图:保存筛选后的 shared + contingent 轨迹
                 recoverable_shared_plan_count = 0
                 # 遍历每条共享轨迹,生成不同预测模式下的备选方案
                 for plan in ft_list_valid:
                     final_plan = {}   # 保存该 shared plan 对应的最佳 contingent plans(按 mode_num)
-                    ft_all_plans = {} # 保存该 shared plan 及其所有 contingent candidates
+                    ft_all_plans = {
+                        "shared_plan": plan,
+                        "branch_plans_by_mode": {},
+                    } # 保存该 shared plan 及其筛选后的 contingent candidates
                     
                     # 根据 shared plan 末速度推 contingency 速度范围
                     max_v = min(
@@ -862,9 +872,7 @@ class FrenetPlanner(Planner):
                         n_samples=self.contingency_parameters["n_v_samples"],
                     )
 
-                    # shared_plan 永远存在
                     final_plan['shared_plan'] = plan
-                    ft_all_plans['shared_plan'] = plan
 
                     # 如果 contingency t_list 第一项不是 0,则需要规划后半段 contingent
                     if t_list[0] != 0:
@@ -895,11 +903,6 @@ class FrenetPlanner(Planner):
                             n_samples=self.contingency_parameters["n_v_samples"],
                             contin=True
                         )
-                        for index in range(len(ft_contingent_list)):
-                            ft_all_plans[index] = ft_contingent_list[index]
-
-                        ft_all_plans_list.append(ft_all_plans)
-
                         for mode_num, mode_selection in enumerate(credible_joint_mode_selections):
                             ft_conting_list_valid = sort_frenet_trajectories(
                                 ego_state=self.ego_state,
@@ -920,8 +923,11 @@ class FrenetPlanner(Planner):
                                 reach_set=(self.reach_set if self.responsibility else None)
                             )
                             ft_conting_list_valid.sort(key=lambda fp: fp.cost, reverse=False)
+                            ft_all_plans["branch_plans_by_mode"][mode_num] = list(ft_conting_list_valid)
                             if len(ft_conting_list_valid) > 0:
                                 final_plan[mode_num] = ft_conting_list_valid[0]
+
+                    ft_all_plans_list.append(ft_all_plans)
 
                     recoverable, missing_credible_modes = _check_recoverability(
                         final_plan=final_plan,
@@ -995,6 +1001,10 @@ class FrenetPlanner(Planner):
                     )
 
                 best_plan = ft_final_list[0]
+                self._record_execution_dynamics(
+                    time_step=self.ego_state.time_step,
+                    best_plan=best_plan,
+                )
 
         # =========================
         # J) 可视化、风险图、记录输出
@@ -1531,6 +1541,197 @@ class FrenetPlanner(Planner):
             str(branching_info.get("selection_reason", "unknown"))
         )
 
+    @staticmethod
+    def _load_publication_font(candidate_paths, fallback_family):
+        for path in candidate_paths:
+            if path and os.path.exists(path):
+                try:
+                    font_manager.fontManager.addfont(path)
+                    return font_manager.FontProperties(fname=path)
+                except Exception:
+                    continue
+        return font_manager.FontProperties(family=fallback_family)
+
+    def _get_publication_font_props(self):
+        chinese_prop = self._load_publication_font(
+            [
+                "/usr/share/fonts/truetype/arphic/uming.ttc",
+                "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+            ],
+            fallback_family="serif",
+        )
+        latin_prop = self._load_publication_font(
+            [
+                "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman.ttf",
+                "/usr/share/fonts/truetype/msttcorefonts/times.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+            ],
+            fallback_family="serif",
+        )
+        return chinese_prop, latin_prop
+
+    @staticmethod
+    def _style_publication_axis(ax, latin_prop, tick_size=12):
+        ax.spines["top"].set_visible(True)
+        ax.spines["right"].set_visible(True)
+        ax.spines["left"].set_linewidth(1.1)
+        ax.spines["bottom"].set_linewidth(1.1)
+        ax.spines["top"].set_linewidth(1.1)
+        ax.spines["right"].set_linewidth(1.1)
+        ax.grid(False)
+        ax.tick_params(axis="both", direction="out", width=1.0, length=4)
+        for tick_label in ax.get_xticklabels() + ax.get_yticklabels():
+            tick_label.set_fontproperties(latin_prop)
+            tick_label.set_fontsize(tick_size)
+
+    @staticmethod
+    def _apply_axis_labels(ax, xlabel, ylabel, title, chinese_prop, title_size=14, label_size=13):
+        if xlabel is not None:
+            ax.set_xlabel(xlabel, fontproperties=chinese_prop, fontsize=label_size, labelpad=8.0)
+        if ylabel is not None:
+            ax.set_ylabel(ylabel, fontproperties=chinese_prop, fontsize=label_size)
+        if title is not None:
+            title_y = -0.36 if xlabel is not None else -0.18
+            title_text = ax.text(
+                0.5,
+                title_y,
+                title,
+                transform=ax.transAxes,
+                ha="center",
+                va="top",
+                fontproperties=chinese_prop,
+                fontsize=title_size,
+                clip_on=False,
+            )
+            title_text.set_in_layout(True)
+
+    @staticmethod
+    def _save_publication_figure(fig, output_path_stem, use_tight_bbox=True):
+        save_kwargs = {"dpi": 600}
+        if use_tight_bbox:
+            save_kwargs["bbox_inches"] = "tight"
+        fig.savefig(f"{output_path_stem}.png", **save_kwargs)
+
+    def _get_reference_branch_time_seconds(self, dt):
+        adaptive_timesteps = self.adaptive_branching_history.get("timesteps", [])
+        adaptive_branch_times = self.adaptive_branching_history.get("selected_branch_time", [])
+        if len(adaptive_timesteps) == 0 or len(adaptive_branch_times) == 0:
+            return None
+
+        absolute_branch_times = []
+        for time_step, branch_time in zip(adaptive_timesteps, adaptive_branch_times):
+            if not np.isfinite(branch_time):
+                continue
+            absolute_branch_times.append(float(time_step) * float(dt) + float(branch_time))
+        if len(absolute_branch_times) == 0:
+            return None
+        return min(absolute_branch_times)
+
+    @staticmethod
+    def _build_publication_curve_data(x_values, y_values):
+        x_array = np.asarray(x_values, dtype=float)
+        y_array = np.asarray(y_values, dtype=float)
+        valid_mask = np.isfinite(x_array) & np.isfinite(y_array)
+        x_valid = x_array[valid_mask]
+        y_valid = y_array[valid_mask]
+        if len(x_valid) == 0:
+            return {
+                "raw_time_s": [],
+                "raw_values": [],
+                "smoothed_time_s": [],
+                "smoothed_values": [],
+                "smoothed_used": False,
+            }
+
+        sort_idx = np.argsort(x_valid)
+        x_valid = x_valid[sort_idx]
+        y_valid = y_valid[sort_idx]
+        x_valid, unique_indices = np.unique(x_valid, return_index=True)
+        y_valid = y_valid[unique_indices]
+
+        smoothed_x = x_valid
+        smoothed_y = y_valid
+        smoothed_used = False
+        if len(x_valid) >= 4:
+            dense_x = np.linspace(x_valid[0], x_valid[-1], max(200, len(x_valid) * 25))
+            spline_order = min(3, len(x_valid) - 1)
+            try:
+                dense_y = make_interp_spline(x_valid, y_valid, k=spline_order)(dense_x)
+                smoothed_x = dense_x
+                smoothed_y = dense_y
+                smoothed_used = True
+            except Exception:
+                smoothed_x = x_valid
+                smoothed_y = y_valid
+
+        return {
+            "raw_time_s": [float(v) for v in x_valid],
+            "raw_values": [float(v) for v in y_valid],
+            "smoothed_time_s": [float(v) for v in smoothed_x],
+            "smoothed_values": [float(v) for v in smoothed_y],
+            "smoothed_used": bool(smoothed_used),
+        }
+
+    @staticmethod
+    def _plot_smoothed_publication_curve(
+        ax,
+        x_values,
+        y_values,
+        color,
+        label,
+        linewidth=2.0,
+        marker=None,
+        markersize=3.5,
+        alpha=1.0,
+        zorder=3,
+    ):
+        curve_data = FrenetPlanner._build_publication_curve_data(x_values, y_values)
+        x_valid = np.asarray(curve_data["raw_time_s"], dtype=float)
+        y_valid = np.asarray(curve_data["raw_values"], dtype=float)
+        smoothed_x = np.asarray(curve_data["smoothed_time_s"], dtype=float)
+        smoothed_y = np.asarray(curve_data["smoothed_values"], dtype=float)
+        if len(x_valid) == 0:
+            return
+
+        ax.plot(
+            smoothed_x,
+            smoothed_y,
+            color=color,
+            linewidth=linewidth,
+            alpha=alpha,
+            label=label,
+            zorder=zorder,
+        )
+
+        if marker is not None:
+            ax.plot(
+                x_valid,
+                y_valid,
+                linestyle="None",
+                marker=marker,
+                markersize=markersize,
+                color=color,
+                alpha=min(alpha + 0.05, 1.0),
+                zorder=zorder + 0.2,
+            )
+
+    def _record_execution_dynamics(self, time_step, best_plan):
+        shared_plan = best_plan.get("shared_plan") if isinstance(best_plan, dict) else None
+        ego_speed = float(self.ego_state.velocity)
+        risk_indicator = np.nan
+        if shared_plan is not None:
+            risk_indicator = getattr(
+                shared_plan,
+                "trajectory_collision_prob_upper_bound",
+                np.nan,
+            )
+
+        self.execution_dynamics_history["timesteps"].append(int(time_step))
+        self.execution_dynamics_history["ego_speed_mps"].append(ego_speed)
+        self.execution_dynamics_history["risk_indicator"].append(float(risk_indicator))
+
     def save_obstacle_belief_plots(self, output_dir, scenario_name=None):
         if (
             len(self.obstacle_belief_history) == 0
@@ -1544,6 +1745,14 @@ class FrenetPlanner(Planner):
         output_path = pathlib.Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
         scenario_prefix = "" if scenario_name is None else f"{scenario_name}_"
+        chinese_prop, latin_prop = self._get_publication_font_props()
+        dt = float(getattr(self.scenario, "dt", 1.0))
+        reference_branch_time_s = self._get_reference_branch_time_seconds(dt=dt)
+        publication_figure_dump = {
+            "scenario_name": scenario_name,
+            "dt": float(dt),
+            "figures": {},
+        }
 
         for obstacle_id, history in self.obstacle_belief_history.items():
             timesteps = history["timesteps"]
@@ -1585,6 +1794,109 @@ class FrenetPlanner(Planner):
                 )
             )
             plt.close(fig)
+
+        sorted_obstacle_ids = sorted(self.obstacle_belief_history.keys())
+        if len(sorted_obstacle_ids) > 0:
+            selected_obstacle_ids = sorted_obstacle_ids[:2]
+            posterior_colors = ["#1f77b4", "#d62728", "#2ca02c", "#9467bd"]
+
+            for subplot_idx, obstacle_id in enumerate(selected_obstacle_ids):
+                fig, ax = plt.subplots(
+                    1,
+                    1,
+                    figsize=(10.8, 5.8),
+                    constrained_layout=False,
+                )
+                fig.subplots_adjust(left=0.10, right=0.72, top=0.90, bottom=0.20)
+                history = self.obstacle_belief_history[obstacle_id]
+                times_s = np.asarray(history["timesteps"], dtype=float) * dt
+                belief_series = history["beliefs"]
+                mode_behavior = history.get("mode_behavior", [])
+                mode_count = max(len(values) for values in belief_series)
+                figure_key = f"figure2({chr(ord('a') + subplot_idx)})"
+                figure_dump = {
+                    "figure_name": figure_key,
+                    "obstacle_id": int(obstacle_id),
+                    "title": f"({chr(ord('a') + subplot_idx)}) 障碍车{subplot_idx + 1}意图后验演化",
+                    "x_label": "时间 / s",
+                    "y_label": "后验概率",
+                    "series": [],
+                }
+
+                for mode_idx in range(mode_count):
+                    mode_values = [
+                        values[mode_idx] if mode_idx < len(values) else np.nan
+                        for values in belief_series
+                    ]
+                    if mode_idx < len(mode_behavior):
+                        behavior = str(mode_behavior[mode_idx]).lower()
+                        if behavior == "yield":
+                            label = "让行模式后验"
+                        elif behavior == "challenge":
+                            label = "抢行模式后验"
+                        else:
+                            label = f"模式{mode_idx + 1}后验"
+                    else:
+                        label = f"模式{mode_idx + 1}后验"
+                    self._plot_smoothed_publication_curve(
+                        ax=ax,
+                        x_values=times_s,
+                        y_values=mode_values,
+                        color=posterior_colors[mode_idx % len(posterior_colors)],
+                        label=label,
+                        linewidth=2.0,
+                        marker="o",
+                        markersize=3.5,
+                    )
+                    curve_data = self._build_publication_curve_data(
+                        x_values=times_s,
+                        y_values=mode_values,
+                    )
+                    figure_dump["series"].append(
+                        {
+                            "mode_index": int(mode_idx),
+                            "mode_behavior": (
+                                str(mode_behavior[mode_idx])
+                                if mode_idx < len(mode_behavior)
+                                else None
+                            ),
+                            "label": label,
+                            "color": posterior_colors[mode_idx % len(posterior_colors)],
+                            "curve_data": curve_data,
+                        }
+                    )
+
+                self._style_publication_axis(ax=ax, latin_prop=latin_prop, tick_size=12)
+                self._apply_axis_labels(
+                    ax=ax,
+                    xlabel="时间 / s",
+                    ylabel="后验概率",
+                    title=f"({chr(ord('a') + subplot_idx)}) 障碍车{subplot_idx + 1}意图后验演化",
+                    chinese_prop=chinese_prop,
+                )
+                ax.tick_params(axis="x", labelbottom=True)
+                ax.xaxis.labelpad = 4.0
+                for text in ax.texts[-1:]:
+                    text.set_y(-0.18)
+                ax.set_ylim(0.0, 1.30)
+                legend = ax.legend(
+                    loc="upper right",
+                    ncol=1,
+                    frameon=True,
+                    framealpha=0.96,
+                    prop=chinese_prop,
+                )
+                legend.get_frame().set_edgecolor("black")
+                legend.get_frame().set_linewidth(0.9)
+
+                self._save_publication_figure(
+                    fig=fig,
+                    output_path_stem=output_path.joinpath(
+                        figure_key
+                    ),
+                )
+                plt.close(fig)
+                publication_figure_dump["figures"][figure_key] = figure_dump
 
         joint_timesteps = self.joint_belief_history.get("timesteps", [])
         joint_weight_series = self.joint_belief_history.get("joint_weights", [])
@@ -1631,6 +1943,233 @@ class FrenetPlanner(Planner):
                     bbox_inches="tight",
                 )
                 plt.close(fig)
+
+                credible_times_s = np.asarray(
+                    self.credible_joint_history.get("timesteps", []),
+                    dtype=float,
+                ) * dt
+                credible_sizes = np.asarray(
+                    self.credible_joint_history.get("credible_set_sizes", []),
+                    dtype=float,
+                )
+
+                joint_colors = ["#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#8c564b", "#e377c2"]
+                joint_times_s = np.asarray(joint_timesteps, dtype=float) * dt
+                theta_definitions = []
+                joint_mode_selections = self.joint_belief_history.get("joint_mode_selections", [])
+                for joint_idx in range(joint_count):
+                    selection = (
+                        dict(joint_mode_selections[joint_idx])
+                        if joint_idx < len(joint_mode_selections)
+                        else {}
+                    )
+                    obstacle_definition = {}
+                    for obstacle_id, mode_idx in sorted(selection.items()):
+                        obstacle_history = self.obstacle_belief_history.get(obstacle_id, {})
+                        obstacle_behaviors = obstacle_history.get("mode_behavior", [])
+                        obstacle_definition[str(obstacle_id)] = {
+                            "mode_index": int(mode_idx),
+                            "mode_behavior": (
+                                str(obstacle_behaviors[mode_idx])
+                                if mode_idx < len(obstacle_behaviors)
+                                else None
+                            ),
+                        }
+                    theta_definitions.append(
+                        {
+                            "theta_index": int(joint_idx + 1),
+                            "theta_name": f"theta_{joint_idx + 1}",
+                            "theta_symbol": rf"$\theta_{{{joint_idx + 1}}}$",
+                            "label": (
+                                str(joint_labels[joint_idx])
+                                if joint_idx < len(joint_labels)
+                                else f"joint_{joint_idx + 1}"
+                            ),
+                            "mode_selection": obstacle_definition,
+                        }
+                    )
+
+                fig_top, ax_top = plt.subplots(
+                    1,
+                    1,
+                    figsize=(11.8, 5.8),
+                    constrained_layout=False,
+                )
+                fig_top.subplots_adjust(left=0.10, right=0.92, top=0.90, bottom=0.20)
+                figure3a_dump = {
+                    "figure_name": "figure3(a)",
+                    "title": "(a) 联合场景后验随时间演化",
+                    "x_label": "时间 / s",
+                    "y_label": "联合场景后验概率",
+                    "theta_definitions": theta_definitions,
+                    "series": [],
+                }
+
+                for joint_idx in range(joint_count):
+                    joint_values = [
+                        values[joint_idx] if joint_idx < len(values) else np.nan
+                        for values in joint_weight_series
+                    ]
+                    self._plot_smoothed_publication_curve(
+                        ax=ax_top,
+                        x_values=joint_times_s,
+                        y_values=joint_values,
+                        linewidth=2.0,
+                        marker="o",
+                        markersize=3.2,
+                        color=joint_colors[joint_idx % len(joint_colors)],
+                        label=rf"$\theta_{{{joint_idx + 1}}}$",
+                    )
+                    figure3a_dump["series"].append(
+                        {
+                            "theta_index": int(joint_idx + 1),
+                            "theta_name": f"theta_{joint_idx + 1}",
+                            "theta_symbol": rf"$\theta_{{{joint_idx + 1}}}$",
+                            "label": (
+                                str(joint_labels[joint_idx])
+                                if joint_idx < len(joint_labels)
+                                else f"joint_{joint_idx + 1}"
+                            ),
+                            "color": joint_colors[joint_idx % len(joint_colors)],
+                            "curve_data": self._build_publication_curve_data(
+                                x_values=joint_times_s,
+                                y_values=joint_values,
+                            ),
+                        }
+                    )
+
+                self._style_publication_axis(ax=ax_top, latin_prop=latin_prop, tick_size=12)
+                self._apply_axis_labels(
+                    ax=ax_top,
+                    xlabel="时间 / s",
+                    ylabel="联合场景后验概率",
+                    title="(a) 联合场景后验随时间演化",
+                    chinese_prop=chinese_prop,
+                )
+                ax_top.tick_params(axis="x", labelbottom=True)
+                ax_top.xaxis.labelpad = 4.0
+                for text in ax_top.texts[-1:]:
+                    text.set_y(-0.18)
+                ax_top.set_ylim(0.0, 1.0)
+                if len(joint_times_s) > 0:
+                    x_min = float(np.nanmin(joint_times_s))
+                    x_max = float(np.nanmax(joint_times_s))
+                    x_span = max(x_max - x_min, 1.0)
+                    ax_top.set_xlim(x_min, x_max + 0.15 * x_span)
+                legend_top = ax_top.legend(
+                    loc="upper right",
+                    ncol=1,
+                    frameon=True,
+                    framealpha=0.96,
+                    prop=chinese_prop,
+                )
+                legend_top.get_frame().set_edgecolor("black")
+                legend_top.get_frame().set_linewidth(0.9)
+                self._save_publication_figure(
+                    fig=fig_top,
+                    output_path_stem=output_path.joinpath(
+                        f"{scenario_prefix}figure3(a)"
+                    ),
+                )
+                plt.close(fig_top)
+                publication_figure_dump["figures"]["figure3(a)"] = figure3a_dump
+
+                if len(credible_times_s) > 0 and len(credible_sizes) == len(credible_times_s):
+                    fig_bottom, ax_bottom = plt.subplots(
+                        1,
+                        1,
+                        figsize=(10.8, 5.8),
+                        constrained_layout=False,
+                    )
+                    fig_bottom.subplots_adjust(left=0.10, right=0.72, top=0.90, bottom=0.20)
+                    ax_bottom.plot(
+                        credible_times_s,
+                        credible_sizes,
+                        linewidth=2.2,
+                        color="#1f77b4",
+                        marker="s",
+                        markersize=4.0,
+                    )
+                    figure3b_dump = {
+                        "figure_name": "figure3(b)",
+                        "title": "(b) 可信场景集规模随时间演化",
+                        "x_label": "时间 / s",
+                        "y_label": "可信场景集规模",
+                        "alpha": float(self.credible_joint_history["alpha"]),
+                        "series": [
+                            {
+                                "label": "可信场景集规模",
+                                "color": "#1f77b4",
+                                "curve_data": {
+                                    "raw_time_s": [float(v) for v in credible_times_s],
+                                    "raw_values": [float(v) for v in credible_sizes],
+                                    "smoothed_time_s": [float(v) for v in credible_times_s],
+                                    "smoothed_values": [float(v) for v in credible_sizes],
+                                    "smoothed_used": False,
+                                },
+                            }
+                        ],
+                        "credible_set_per_timestep": [],
+                    }
+                    credible_indices_history = self.credible_joint_history.get("credible_indices", [])
+                    credible_weights_history = self.credible_joint_history.get("credible_weights", [])
+                    credible_labels_history = self.credible_joint_history.get("credible_labels", [])
+                    credible_cumprob_history = self.credible_joint_history.get("credible_cumulative_prob", [])
+                    credible_timestep_history = self.credible_joint_history.get("timesteps", [])
+                    for idx, time_step in enumerate(credible_timestep_history):
+                        theta_names = [
+                            f"theta_{int(theta_idx) + 1}"
+                            for theta_idx in credible_indices_history[idx]
+                        ] if idx < len(credible_indices_history) else []
+                        figure3b_dump["credible_set_per_timestep"].append(
+                            {
+                                "time_step": int(time_step),
+                                "time_s": float(time_step) * float(dt),
+                                "credible_indices": (
+                                    [int(v) for v in credible_indices_history[idx]]
+                                    if idx < len(credible_indices_history)
+                                    else []
+                                ),
+                                "credible_theta_names": theta_names,
+                                "credible_weights": (
+                                    [float(v) for v in credible_weights_history[idx]]
+                                    if idx < len(credible_weights_history)
+                                    else []
+                                ),
+                                "credible_labels": (
+                                    [str(v) for v in credible_labels_history[idx]]
+                                    if idx < len(credible_labels_history)
+                                    else []
+                                ),
+                                "credible_cumulative_prob": (
+                                    float(credible_cumprob_history[idx])
+                                    if idx < len(credible_cumprob_history)
+                                    else 0.0
+                                ),
+                                "credible_set_size": int(credible_sizes[idx]),
+                            }
+                        )
+
+                    self._style_publication_axis(ax=ax_bottom, latin_prop=latin_prop, tick_size=12)
+                    self._apply_axis_labels(
+                        ax=ax_bottom,
+                        xlabel="时间 / s",
+                        ylabel=r"可信场景集规模",
+                        title="(b) 可信场景集规模随时间演化",
+                        chinese_prop=chinese_prop,
+                    )
+                    ax_bottom.xaxis.labelpad = 4.0
+                    for text in ax_bottom.texts[-1:]:
+                        text.set_y(-0.18)
+                    ax_bottom.set_ylim(0.0, max(1.0, float(np.nanmax(credible_sizes)) + 0.8))
+                    self._save_publication_figure(
+                        fig=fig_bottom,
+                        output_path_stem=output_path.joinpath(
+                            f"{scenario_prefix}figure3(b)"
+                        ),
+                    )
+                    plt.close(fig_bottom)
+                    publication_figure_dump["figures"]["figure3(b)"] = figure3b_dump
 
         credible_timesteps = self.credible_joint_history.get("timesteps", [])
         credible_sizes = self.credible_joint_history.get("credible_set_sizes", [])
@@ -1698,6 +2237,16 @@ class FrenetPlanner(Planner):
                 encoding="utf-8",
             ) as credible_file:
                 json.dump(credible_dump, credible_file, indent=2, ensure_ascii=False)
+
+        if len(publication_figure_dump["figures"]) > 0:
+            with open(
+                output_path.joinpath(
+                    f"{scenario_prefix}figure2_figure3_plot_data.json"
+                ),
+                "w",
+                encoding="utf-8",
+            ) as publication_file:
+                json.dump(publication_figure_dump, publication_file, indent=2, ensure_ascii=False)
 
         recoverability_timesteps = self.recoverability_history.get("timesteps", [])
         recoverable_counts = self.recoverability_history.get("recoverable_shared_plan_count", [])
@@ -1971,6 +2520,109 @@ class FrenetPlanner(Planner):
                     )
                     plt.close(fig)
 
+        execution_timesteps = self.execution_dynamics_history.get("timesteps", [])
+        execution_speed = self.execution_dynamics_history.get("ego_speed_mps", [])
+        execution_risk = self.execution_dynamics_history.get("risk_indicator", [])
+        if (
+            len(execution_timesteps) > 0
+            and len(execution_speed) == len(execution_timesteps)
+            and len(execution_risk) == len(execution_timesteps)
+        ):
+            fig_pub4, axes_pub4 = plt.subplots(
+                2,
+                1,
+                figsize=(11.4, 8.4),
+                sharex=True,
+                constrained_layout=True,
+            )
+            ax_speed, ax_risk = axes_pub4
+            execution_times_s = np.asarray(execution_timesteps, dtype=float) * dt
+            execution_speed = np.asarray(execution_speed, dtype=float)
+            execution_risk = np.asarray(execution_risk, dtype=float)
+            risk_threshold = self.params_mode.get(
+                "max_acceptable_trajectory_collision_prob_upper_bound",
+                None,
+            )
+
+            self._plot_smoothed_publication_curve(
+                ax=ax_speed,
+                x_values=execution_times_s,
+                y_values=execution_speed,
+                color="#1f77b4",
+                label=r"自车速度 $v(t)$",
+                linewidth=2.2,
+                marker="o",
+                markersize=3.4,
+            )
+            self._style_publication_axis(ax=ax_speed, latin_prop=latin_prop, tick_size=12)
+            self._apply_axis_labels(
+                ax=ax_speed,
+                xlabel=None,
+                ylabel="自车速度 / (m/s)",
+                title="(a) 自车速度随时间演化",
+                chinese_prop=chinese_prop,
+            )
+            legend_speed = ax_speed.legend(
+                loc="upper right",
+                ncol=1,
+                frameon=True,
+                framealpha=0.96,
+                prop=chinese_prop,
+            )
+            legend_speed.get_frame().set_edgecolor("black")
+            legend_speed.get_frame().set_linewidth(0.9)
+
+            self._plot_smoothed_publication_curve(
+                ax=ax_risk,
+                x_values=execution_times_s,
+                y_values=execution_risk,
+                color="#d62728",
+                label="轨迹级碰撞概率上界",
+                linewidth=2.2,
+                marker="s",
+                markersize=3.6,
+            )
+            if risk_threshold is not None:
+                ax_risk.axhline(
+                    float(risk_threshold),
+                    color="#ff7f0e",
+                    linestyle="--",
+                    linewidth=1.5,
+                    label=r"风险阈值 $\delta$",
+                )
+            self._style_publication_axis(ax=ax_risk, latin_prop=latin_prop, tick_size=12)
+            self._apply_axis_labels(
+                ax=ax_risk,
+                xlabel="时间 / s",
+                ylabel="风险指标",
+                title="(b) 风险指标与分支时刻的时间对齐关系",
+                chinese_prop=chinese_prop,
+            )
+            risk_upper = np.nanmax(
+                [
+                    np.nanmax(execution_risk) if np.any(np.isfinite(execution_risk)) else 0.0,
+                    float(risk_threshold) if risk_threshold is not None else 0.0,
+                ]
+            )
+            ax_risk.set_ylim(0.0, max(0.25, 1.15 * risk_upper if risk_upper > 0 else 0.25))
+            legend_risk = ax_risk.legend(
+                loc="upper right",
+                ncol=1,
+                frameon=True,
+                framealpha=0.96,
+                prop=chinese_prop,
+            )
+            legend_risk.get_frame().set_edgecolor("black")
+            legend_risk.get_frame().set_linewidth(0.9)
+
+            self._save_publication_figure(
+                fig=fig_pub4,
+                output_path_stem=output_path.joinpath(
+                    f"{scenario_prefix}figure4_ego_speed_risk_alignment"
+                ),
+            )
+            plt.close(fig_pub4)
+
 
 if __name__ == "__main__":
     # ===== 命令行入口:加载配置并调用 ScenarioEvaluator =====
@@ -1994,7 +2646,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     # 创建参数解析器
-    parser.add_argument("--scenario", default="recorded/hand-crafted/vv_samples/vv_074"
+    parser.add_argument("--scenario", default="recorded/hand-crafted/BRA_VilaVelha-92_1_T-10"
                                               ".xml")
     # --scenario:指定要评测的场景路径
     # 默认值被拆成两段字符串拼接(Python 会自动连接相邻字符串常量)
