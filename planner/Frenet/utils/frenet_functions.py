@@ -1070,6 +1070,40 @@ def sort_frenet_trajectories(
 
         return 4.0 * peak_risk + 2.0 * total_risk + 0.5 * terminal_speed + 0.1 * final_offset
 
+    def _calc_physics_fallback_cost(fp):
+        max_acc_violation = 0.0
+        if hasattr(fp, "s_dd") and fp.s_dd is not None and len(fp.s_dd) > 0:
+            max_acc_violation = max(
+                0.0,
+                max(abs(float(acc_i)) for acc_i in fp.s_dd) - float(vehicle_params.longitudinal.a_max),
+            )
+
+        max_curv_violation = 0.0
+        if (
+            hasattr(fp, "curv")
+            and fp.curv is not None
+            and len(fp.curv) > 0
+            and hasattr(fp, "v")
+            and fp.v is not None
+            and len(fp.v) == len(fp.curv)
+        ):
+            for curv_i, vel_i in zip(fp.curv, fp.v):
+                curv_limit, _ = get_max_curvature(vehicle_params=vehicle_params, v=float(vel_i))
+                if curv_limit > 1e-9:
+                    max_curv_violation = max(
+                        max_curv_violation,
+                        max(0.0, abs(float(curv_i)) / float(curv_limit) - 1.0),
+                    )
+
+        terminal_speed = abs(fp.s_d[-1]) if hasattr(fp, "s_d") and len(fp.s_d) > 0 else 0.0
+        final_offset = abs(fp.d[-1]) if hasattr(fp, "d") and len(fp.d) > 0 else 0.0
+        return (
+            100.0 * max_acc_violation
+            + 100.0 * max_curv_violation
+            + 0.5 * terminal_speed
+            + 0.1 * final_offset
+        )
+
     # 以每个有效等级做桶
     validity_dict = {key: [] for key in VALIDITY_LEVELS}
 
@@ -1082,6 +1116,7 @@ def sort_frenet_trajectories(
 
     # ========== 1) 基础 validity 检查 ==========
     ft_list_basic_validity = []
+    ft_list_basic_invalidity = []
     for fp in fp_list:
         with timer.time_with_cm("simulation/sort trajectories/check validity/total"):
             fp.valid_level, fp.reason_invalid = check_validity_basic(
@@ -1091,16 +1126,21 @@ def sort_frenet_trajectories(
             )
         if fp.valid_level == 10:
             ft_list_basic_validity.append(fp)
-        # else:
-        #     validity_dict[fp.valid_level].append(fp)
+        else:
+            ft_list_basic_invalidity.append(fp)
 
     if len(ft_list_basic_validity) == 0:
-        # ft_list_invalid = [
-        #     validity_dict[inv] for inv in VALIDITY_LEVELS if inv < 10
-        # ]
-        # ft_list_invalid = [item for sublist in ft_list_invalid for item in sublist]
-        # return [], ft_list_invalid
-        return []
+        if len(ft_list_basic_invalidity) == 0:
+            return []
+
+        for fp in ft_list_basic_invalidity:
+            fp.cost = _calc_physics_fallback_cost(fp)
+            fp.cost_dict = {"physics_fallback_cost": fp.cost}
+            fp.used_physics_fallback = True
+            fp.used_risk_fallback = False
+
+        ft_list_basic_invalidity.sort(key=lambda fp: fp.cost, reverse=False)
+        return ft_list_basic_invalidity
 
     # ========== 2) 风险计算（仅对基础有效轨迹） ==========
     if predictions is not None:
@@ -1177,6 +1217,7 @@ def sort_frenet_trajectories(
             mode_num=mode_num
         )
         fp.used_risk_fallback = False
+        fp.used_physics_fallback = False
 
     return ft_list_highest_validity
 
