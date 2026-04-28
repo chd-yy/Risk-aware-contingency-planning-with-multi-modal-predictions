@@ -994,9 +994,10 @@ class FrenetPlanner(Planner):
                     #     plan['cost'] = plan['shared_plan'].cost
                     # else:
                     plan['cost'] = plan['shared_plan'].cost
-                    for mode_num, mode_weight in enumerate(credible_joint_mode_weights):
-                        if mode_num in plan:
-                            plan['cost'] += mode_weight * plan[mode_num].cost
+                    if self._uses_branch_cost_in_ranking():
+                        for mode_num, mode_weight in enumerate(credible_joint_mode_weights):
+                            if mode_num in plan:
+                                plan['cost'] += mode_weight * plan[mode_num].cost
 
                 # sort the final plan
                 # 最终按总代价排序,ft_final_list[0] 就是全计划最优
@@ -1301,6 +1302,9 @@ class FrenetPlanner(Planner):
     def _enforces_recoverability_constraint(self):
         return self.method_variant in {"ours", "fixed_cp", "ours_wo_CS"}
 
+    def _uses_branch_cost_in_ranking(self):
+        return self.method_variant != "ours_wo_Rec"
+
     def _get_single_shared_horizon_time(self):
         if isinstance(self.contingency_parameters, dict) and "t_list" in self.contingency_parameters:
             return float(max(self.contingency_parameters["t_list"]))
@@ -1597,11 +1601,31 @@ class FrenetPlanner(Planner):
         threshold = float(config["separability_threshold"])
         selected_idx = len(candidate_times) - 1
         selection_reason = "fallback_latest_branch_time"
-        for idx, separability_value in enumerate(separability_series):
-            if separability_value >= threshold:
-                selected_idx = idx
+        if self.method_variant == "ours_wo_Rec":
+            selected_idx = 0
+            return {
+                "selected_branch_time": float(candidate_times[selected_idx]),
+                "selected_branch_step": int(
+                    round(float(candidate_times[selected_idx]) / self.scenario.dt)
+                ),
+                "selected_separability": float(separability_series[selected_idx]),
+                "separability_threshold": threshold,
+                "candidate_times": candidate_times,
+                "separability_series": separability_series,
+                "selection_reason": "earliest_candidate_ablation",
+            }
+        separable_indices = [
+            idx
+            for idx, separability_value in enumerate(separability_series)
+            if separability_value >= threshold
+        ]
+        if len(separable_indices) > 0:
+            if self.method_variant == "ours_wo_Rec":
+                selected_idx = separable_indices[-1]
+                selection_reason = "latest_separable_candidate_ablation"
+            else:
+                selected_idx = separable_indices[0]
                 selection_reason = "first_separable_candidate"
-                break
 
         return {
             "selected_branch_time": float(candidate_times[selected_idx]),

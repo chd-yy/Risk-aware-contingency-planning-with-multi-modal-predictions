@@ -281,8 +281,11 @@ def _scenario_metrics(
     credible_timesteps = []
     credible_labels = []
     recoverability_indicator = []
+    recoverability_activation_indicator = []
     shared_plan_count = []
     recoverable_shared_plan_count = []
+    selected_plan_recoverable_indicator = []
+    recoverability_enforced = []
     if planner is not None:
         credible_sizes = [
             int(value)
@@ -300,6 +303,12 @@ def _scenario_metrics(
             int(value)
             for value in planner.recoverability_history.get("recoverability_indicator", [])
         ]
+        recoverability_activation_indicator = [
+            int(value)
+            for value in planner.recoverability_history.get(
+                "recoverability_activation_indicator", []
+            )
+        ]
         shared_plan_count = [
             int(value)
             for value in planner.recoverability_history.get("shared_plan_count", [])
@@ -307,6 +316,16 @@ def _scenario_metrics(
         recoverable_shared_plan_count = [
             int(value)
             for value in planner.recoverability_history.get("recoverable_shared_plan_count", [])
+        ]
+        selected_plan_recoverable_indicator = [
+            int(value)
+            for value in planner.recoverability_history.get(
+                "selected_plan_recoverable_indicator", []
+            )
+        ]
+        recoverability_enforced = [
+            int(value)
+            for value in planner.recoverability_history.get("recoverability_enforced", [])
         ]
 
     unrecoverable_ratio_series = []
@@ -364,10 +383,23 @@ def _scenario_metrics(
             if unrecoverable_ratio_series
             else None
         ),
+        "recoverability_activation_ratio": (
+            float(np.mean(recoverability_activation_indicator))
+            if recoverability_activation_indicator
+            else None
+        ),
+        "selected_plan_unrecoverable_ratio": (
+            float(1.0 - np.mean(selected_plan_recoverable_indicator))
+            if selected_plan_recoverable_indicator
+            else None
+        ),
         "credible_set_sizes": credible_sizes,
         "recoverability_indicator": recoverability_indicator,
+        "recoverability_activation_indicator": recoverability_activation_indicator,
         "shared_plan_count": shared_plan_count,
         "recoverable_shared_plan_count": recoverable_shared_plan_count,
+        "selected_plan_recoverable_indicator": selected_plan_recoverable_indicator,
+        "recoverability_enforced": recoverability_enforced,
         "unrecoverable_ratio_series": unrecoverable_ratio_series,
         "planning_cycle_times": planning_cycle_times,
     }
@@ -414,6 +446,16 @@ def _aggregate_summary(per_scenario_metrics: List[Dict]) -> Dict:
         for item in per_scenario_metrics
         if item["C_Omega"] is not None
     ]
+    activation_values = [
+        float(item["recoverability_activation_ratio"])
+        for item in per_scenario_metrics
+        if item["recoverability_activation_ratio"] is not None
+    ]
+    selected_unrecoverable_values = [
+        float(item["selected_plan_unrecoverable_ratio"])
+        for item in per_scenario_metrics
+        if item["selected_plan_unrecoverable_ratio"] is not None
+    ]
 
     return {
         "scenario_count": scenario_count,
@@ -432,6 +474,14 @@ def _aggregate_summary(per_scenario_metrics: List[Dict]) -> Dict:
             if all_unrecoverable_ratio
             else None
         ),
+        "recoverability_activation_ratio": (
+            float(np.mean(activation_values)) if activation_values else None
+        ),
+        "selected_plan_unrecoverable_ratio": (
+            float(np.mean(selected_unrecoverable_values))
+            if selected_unrecoverable_values
+            else None
+        ),
         "aggregation_notes": {
             "T_task": "Mean task completion time over successful scenarios only.",
             "d_min": "Mean of per-scenario minimum clearances.",
@@ -441,6 +491,8 @@ def _aggregate_summary(per_scenario_metrics: List[Dict]) -> Dict:
             "Omega_bar": "Mean credible joint scenario set size over all planning cycles.",
             "C_Omega": "Mean per-scenario true joint intent coverage by credible joint sets.",
             "URR": "Mean unrecoverable shared-plan ratio over all planning cycles: 1 - recoverable_shared_plan_count / shared_plan_count.",
+            "recoverability_activation_ratio": "Mean fraction of planning cycles where recoverability filtered at least one shared plan.",
+            "selected_plan_unrecoverable_ratio": "Mean fraction of planning cycles where the finally selected best plan is actually unrecoverable.",
         },
     }
 
@@ -472,8 +524,11 @@ def _write_metrics_csv(output_path: Path, per_scenario_metrics: List[Dict]):
         row = dict(item)
         row.pop("credible_set_sizes", None)
         row.pop("recoverability_indicator", None)
+        row.pop("recoverability_activation_indicator", None)
         row.pop("shared_plan_count", None)
         row.pop("recoverable_shared_plan_count", None)
+        row.pop("selected_plan_recoverable_indicator", None)
+        row.pop("recoverability_enforced", None)
         row.pop("unrecoverable_ratio_series", None)
         row.pop("planning_cycle_times", None)
         rows.append(row)
@@ -493,6 +548,8 @@ def _write_metrics_csv(output_path: Path, per_scenario_metrics: List[Dict]):
         "Omega_bar",
         "C_Omega",
         "URR",
+        "recoverability_activation_ratio",
+        "selected_plan_unrecoverable_ratio",
     ]
     with open(output_path, "w", newline="") as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
@@ -510,6 +567,11 @@ def main():
     parser.add_argument("--contingency-config", default="contingency.json")
     parser.add_argument("--risk-config", default="risk.json")
     parser.add_argument("--fps", type=int, default=10)
+    parser.add_argument("--experiment-tag", default="")
+    parser.add_argument("--recoverability-enabled", choices=["true", "false"], default=None)
+    parser.add_argument("--longitudinal-a-max-scale", type=float, default=None)
+    parser.add_argument("--lateral-a-max-scale", type=float, default=None)
+    parser.add_argument("--longitudinal-v-max-scale", type=float, default=None)
     parser.add_argument(
         "--limit",
         type=int,
@@ -528,6 +590,26 @@ def main():
     settings["risk_dict"]["figures"]["create_figures"] = False
     settings["risk_dict"]["risk_dashboard"] = False
     settings["risk_dict"]["collision_report"] = False
+
+    vehicle_param_overrides = {}
+    if args.longitudinal_a_max_scale is not None:
+        vehicle_param_overrides["longitudinal_a_max_scale"] = float(
+            args.longitudinal_a_max_scale
+        )
+    if args.lateral_a_max_scale is not None:
+        vehicle_param_overrides["lateral_a_max_scale"] = float(
+            args.lateral_a_max_scale
+        )
+    if args.longitudinal_v_max_scale is not None:
+        vehicle_param_overrides["longitudinal_v_max_scale"] = float(
+            args.longitudinal_v_max_scale
+        )
+    settings["evaluation_settings"]["vehicle_param_overrides"] = vehicle_param_overrides
+    if args.recoverability_enabled is not None:
+        settings["contingency_settings"].setdefault("recoverability", {})
+        settings["contingency_settings"]["recoverability"]["enabled"] = (
+            args.recoverability_enabled.lower() == "true"
+        )
 
     path_to_scenarios = (REPO_ROOT / "scenarios").resolve()
     output_dir = (REPO_ROOT / args.output_dir).resolve()
@@ -588,6 +670,11 @@ def main():
 
     summary = _aggregate_summary(per_scenario_metrics)
     summary["evaluated_scenarios"] = len(scenario_list)
+    summary["experiment_tag"] = str(args.experiment_tag)
+    summary["recoverability_enabled"] = settings["contingency_settings"].get(
+        "recoverability", {}
+    ).get("enabled", True)
+    summary["vehicle_param_overrides"] = vehicle_param_overrides
 
     metrics_json_path = output_dir / "metrics_summary.json"
     metrics_csv_path = output_dir / "metrics_per_scenario.csv"

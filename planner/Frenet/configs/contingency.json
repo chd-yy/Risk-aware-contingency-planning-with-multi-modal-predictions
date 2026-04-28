@@ -16,5 +16,8 @@
       "min_branch_time": 0.4,
       "candidate_dt": 0.1,
       "separability_threshold": 1.0
+    },
+    "recoverability": {
+      "enabled": true
     }
 }

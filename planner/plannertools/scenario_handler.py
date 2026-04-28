@@ -150,6 +150,38 @@ class ScenarioHandler:
             "Total": 0.0,
         }
 
+    def _apply_vehicle_param_overrides(self):
+        overrides = {}
+        planner_settings = getattr(self.planner_creator, "settings", None)
+        if isinstance(planner_settings, dict):
+            eval_settings = planner_settings.get("evaluation_settings", {})
+            if isinstance(eval_settings, dict):
+                overrides = eval_settings.get("vehicle_param_overrides", {})
+        if not isinstance(overrides, dict) or self.vehicle_params is None:
+            return
+
+        longitudinal = getattr(self.vehicle_params, "longitudinal", None)
+        if longitudinal is not None:
+            if "longitudinal_a_max_scale" in overrides:
+                longitudinal.a_max = float(longitudinal.a_max) * float(
+                    overrides["longitudinal_a_max_scale"]
+                )
+            if "longitudinal_v_max_scale" in overrides:
+                longitudinal.v_max = float(longitudinal.v_max) * float(
+                    overrides["longitudinal_v_max_scale"]
+                )
+            if "longitudinal_a_max" in overrides:
+                longitudinal.a_max = float(overrides["longitudinal_a_max"])
+            if "longitudinal_v_max" in overrides:
+                longitudinal.v_max = float(overrides["longitudinal_v_max"])
+
+        if "lateral_a_max_scale" in overrides:
+            self.vehicle_params.lateral_a_max = float(self.vehicle_params.lateral_a_max) * float(
+                overrides["lateral_a_max_scale"]
+            )
+        if "lateral_a_max" in overrides:
+            self.vehicle_params.lateral_a_max = float(overrides["lateral_a_max"])
+
     def _initialize(self):
         """WIP."""
         """
@@ -173,6 +205,7 @@ class ScenarioHandler:
         with self.exec_timer.time_with_cm("read vehicle parameters"):
             # get the parameters of the vehicle
             self.vehicle_params = VehicleParameters(self.vehicle_type)
+            self._apply_vehicle_param_overrides()
         # print("Loaded vehicle parameters:\n{}".format(self.vehicle_params))
 
         # 3) 把 ego 车加到 scenario 里
