@@ -1008,6 +1008,7 @@ def sort_frenet_trajectories(
         mode_num=100,
         belief=None,
         reach_set=None,
+        enable_basic_fallback=True,
 ):
     """Sort the frenet trajectories. Check validity of all frenet trajectories in fp_list and sort them by increasing cost.
 
@@ -1070,6 +1071,56 @@ def sort_frenet_trajectories(
 
         return 4.0 * peak_risk + 2.0 * total_risk + 0.5 * terminal_speed + 0.1 * final_offset
 
+    def _calc_basic_fallback_cost(fp):
+        speed_excess = 0.0
+        if hasattr(fp, "s_d") and fp.s_d is not None and len(fp.s_d) > 0:
+            speed_excess = max(
+                0.0,
+                float(np.max(np.abs(fp.s_d))) - float(vehicle_params.longitudinal.v_max),
+            )
+
+        accel_excess = 0.0
+        if hasattr(fp, "s_dd") and fp.s_dd is not None and len(fp.s_dd) > 0:
+            accel_excess = max(
+                0.0,
+                float(np.max(np.abs(fp.s_dd))) - float(vehicle_params.longitudinal.a_max),
+            )
+
+        curvature_excess = 0.0
+        if (
+            hasattr(fp, "curv")
+            and fp.curv is not None
+            and len(fp.curv) > 0
+            and hasattr(fp, "v")
+            and fp.v is not None
+            and len(fp.v) == len(fp.curv)
+        ):
+            turning_radius = np.sqrt(
+                (vehicle_params.l ** 2 / np.tan(vehicle_params.steering.max) ** 2)
+                + (vehicle_params.l_r ** 2)
+            )
+            threshold_low_velocity = np.sqrt(
+                vehicle_params.lateral_a_max * turning_radius
+            )
+            for curv, vel in zip(np.abs(fp.curv), fp.v):
+                if vel < threshold_low_velocity:
+                    c_max_current = 1.0 / turning_radius
+                else:
+                    c_max_current = vehicle_params.lateral_a_max / (vel ** 2)
+                curvature_excess = max(curvature_excess, float(curv) - float(c_max_current))
+            curvature_excess = max(0.0, curvature_excess)
+
+        terminal_speed = abs(fp.s_d[-1]) if hasattr(fp, "s_d") and len(fp.s_d) > 0 else 0.0
+        final_offset = abs(fp.d[-1]) if hasattr(fp, "d") and len(fp.d) > 0 else 0.0
+
+        return (
+            1000.0 * speed_excess
+            + 1000.0 * accel_excess
+            + 1500.0 * curvature_excess
+            + 0.5 * terminal_speed
+            + 0.1 * final_offset
+        )
+
     # 以每个有效等级做桶
     validity_dict = {key: [] for key in VALIDITY_LEVELS}
 
@@ -1095,12 +1146,17 @@ def sort_frenet_trajectories(
         #     validity_dict[fp.valid_level].append(fp)
 
     if len(ft_list_basic_validity) == 0:
-        # ft_list_invalid = [
-        #     validity_dict[inv] for inv in VALIDITY_LEVELS if inv < 10
-        # ]
-        # ft_list_invalid = [item for sublist in ft_list_invalid for item in sublist]
-        # return [], ft_list_invalid
-        return []
+        if not enable_basic_fallback:
+            return []
+        ft_list_basic_fallback = list(fp_list)
+        for fp in ft_list_basic_fallback:
+            fp.cost = _calc_basic_fallback_cost(fp)
+            fp.cost_dict = {"basic_fallback_cost": fp.cost}
+            fp.used_basic_fallback = True
+            fp.used_risk_fallback = False
+
+        ft_list_basic_fallback.sort(key=lambda fp: fp.cost, reverse=False)
+        return ft_list_basic_fallback
 
     # ========== 2) 风险计算（仅对基础有效轨迹） ==========
     if predictions is not None:
@@ -1139,6 +1195,7 @@ def sort_frenet_trajectories(
             fp.cost = _calc_risk_fallback_cost(fp)
             fp.cost_dict = {"risk_fallback_cost": fp.cost}
             fp.used_risk_fallback = True
+            fp.used_basic_fallback = False
 
         ft_list_risk_fallback.sort(key=lambda fp: fp.cost, reverse=False)
         return ft_list_risk_fallback
@@ -1177,6 +1234,7 @@ def sort_frenet_trajectories(
             mode_num=mode_num
         )
         fp.used_risk_fallback = False
+        fp.used_basic_fallback = False
 
     return ft_list_highest_validity
 

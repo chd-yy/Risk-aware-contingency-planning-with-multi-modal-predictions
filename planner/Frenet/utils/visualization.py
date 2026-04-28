@@ -1003,53 +1003,53 @@ def draw_all_plans(
         )
 
     legend_handles = []
-    if len(all_shared_trajs) > 0:
-        legend_handles.append(
-            Line2D(
-                [0],
-                [0],
-                color="k",
-                lw=3.0,
-                ls="-",
-                alpha=0.95,
-                label="所有有效共享轨迹",
-            )
-        )
-    if len(all_branch_trajs) > 0:
-        legend_handles.append(
-            Line2D(
-                [0],
-                [0],
-                color="#2f6fd6",
-                lw=3.0,
-                ls="--",
-                alpha=0.95,
-                label="所有有效分支轨迹",
-            )
-        )
-    if has_best_traj:
-        legend_handles.append(
-            Line2D(
-                [0],
-                [0],
-                color="tab:green",
-                lw=3.0,
-                ls="-",
-                alpha=1.0,
-                label="最优共享轨迹",
-            )
-        )
-        legend_handles.append(
-            Line2D(
-                [0],
-                [0],
-                color="tab:blue",
-                lw=3.0,
-                ls="-",
-                alpha=1.0,
-                label="最优分支轨迹",
-            )
-        )
+    # if len(all_shared_trajs) > 0:
+    #     legend_handles.append(
+    #         Line2D(
+    #             [0],
+    #             [0],
+    #             color="k",
+    #             lw=3.0,
+    #             ls="-",
+    #             alpha=0.95,
+    #             label="所有有效共享轨迹",
+    #         )
+    #     )
+    # if len(all_branch_trajs) > 0:
+    #     legend_handles.append(
+    #         Line2D(
+    #             [0],
+    #             [0],
+    #             color="#2f6fd6",
+    #             lw=3.0,
+    #             ls="--",
+    #             alpha=0.95,
+    #             label="所有有效分支轨迹",
+    #         )
+    #     )
+    # if has_best_traj:
+    #     legend_handles.append(
+    #         Line2D(
+    #             [0],
+    #             [0],
+    #             color="tab:green",
+    #             lw=3.0,
+    #             ls="-",
+    #             alpha=1.0,
+    #             label="最优共享轨迹",
+    #         )
+    #     )
+    #     legend_handles.append(
+    #         Line2D(
+    #             [0],
+    #             [0],
+    #             color="tab:blue",
+    #             lw=3.0,
+    #             ls="-",
+    #             alpha=1.0,
+    #             label="最优分支轨迹",
+    #         )
+    #     )
 
     if len(legend_handles) > 0:
         legend_prop = _get_chinese_font_properties(size=plt.rcParams["legend.fontsize"])

@@ -223,6 +223,9 @@ class FrenetPlanner(Planner):
             "recoverable_shared_plan_count": [],
             "credible_set_size": [],
             "recoverability_indicator": [],
+            "recoverability_activation_indicator": [],
+            "selected_plan_recoverable_indicator": [],
+            "recoverability_enforced": [],
         }
         self.adaptive_branching_history = {
             "timesteps": [],
@@ -756,6 +759,9 @@ class FrenetPlanner(Planner):
             inv_weight_sum = 1.0 / weight_sum
             return [weight * inv_weight_sum for weight in joint_weights]
 
+        recoverability_config = self._get_recoverability_config()
+        recoverability_enforced = bool(recoverability_config["enabled"])
+
         def _check_recoverability(final_plan, credible_mode_selections, contingency_required):
             if not contingency_required or len(credible_mode_selections) == 0:
                 return True, []
@@ -815,7 +821,8 @@ class FrenetPlanner(Planner):
                 start_idx=0,
                 mode_num=100,
                 belief=belief,
-                reach_set=(self.reach_set if self.responsibility else None)
+                reach_set=(self.reach_set if self.responsibility else None),
+                enable_basic_fallback=True,
             )
 
             # =========================
@@ -831,6 +838,11 @@ class FrenetPlanner(Planner):
                     print(
                         f"[FrenetPlanner] timestep={self.ego_state.time_step}: "
                         "using max-risk fallback trajectory"
+                    )
+                if len(ft_list_valid) > 0 and getattr(ft_list_valid[0], "used_basic_fallback", False):
+                    print(
+                        f"[FrenetPlanner] timestep={self.ego_state.time_step}: "
+                        "using least-invalid shared fallback trajectory"
                     )
 
                 # contingency 阶段的速度范围推算,使用 contingency_parameters 的 t_list
@@ -920,7 +932,8 @@ class FrenetPlanner(Planner):
                                 exec_timer=self.exec_timer,
                                 start_idx=shared_start_idx,
                                 mode_num=mode_selection,
-                                reach_set=(self.reach_set if self.responsibility else None)
+                                reach_set=(self.reach_set if self.responsibility else None),
+                                enable_basic_fallback=False,
                             )
                             ft_conting_list_valid.sort(key=lambda fp: fp.cost, reverse=False)
                             ft_all_plans["branch_plans_by_mode"][mode_num] = list(ft_conting_list_valid)
@@ -937,9 +950,11 @@ class FrenetPlanner(Planner):
                     final_plan["recoverable"] = recoverable
                     final_plan["missing_credible_modes"] = list(missing_credible_modes)
                     final_plan["credible_set_size"] = len(credible_joint_mode_selections)
+                    final_plan["recoverability_enforced"] = recoverability_enforced
 
                     if recoverable:
                         recoverable_shared_plan_count += 1
+                    if recoverable or not recoverability_enforced:
                         ft_final_list.append(final_plan)
 
                 self.recoverability_history["timesteps"].append(int(self.ego_state.time_step))
@@ -952,6 +967,12 @@ class FrenetPlanner(Planner):
                 )
                 self.recoverability_history["recoverability_indicator"].append(
                     int(recoverable_shared_plan_count > 0)
+                )
+                self.recoverability_history["recoverability_activation_indicator"].append(
+                    int(recoverable_shared_plan_count < len(ft_list_valid))
+                )
+                self.recoverability_history["recoverability_enforced"].append(
+                    int(recoverability_enforced)
                 )
 
                 # we need to get the belief over the modes to use it as weights in the cost function
@@ -986,21 +1007,35 @@ class FrenetPlanner(Planner):
                 if len(ft_final_list) == 0:
                     if len(ft_list_valid) == 0:
                         raise RuntimeError(
-                            f"No valid shared Frenet trajectories at timestep {self.ego_state.time_step}"
+                            f"No sampled Frenet trajectories at timestep {self.ego_state.time_step}"
                         )
-                    if t_list[0] != 0 and len(credible_joint_mode_selections) > 0:
-                        raise RuntimeError(
-                            "No recoverable Frenet plan available at timestep "
-                            f"{self.ego_state.time_step} "
-                            f"(valid_shared={len(ft_list_valid)}, "
-                            f"credible_joint_modes={len(credible_joint_mode_selections)}, "
-                            f"recoverable_shared={recoverable_shared_plan_count})"
-                        )
-                    raise RuntimeError(
-                        f"No Frenet plan available for current step {self.ego_state.time_step}"
-                    )
 
-                best_plan = ft_final_list[0]
+                    conservative_shared_plan = self._select_conservative_shared_fallback(
+                        ft_list_valid
+                    )
+                    if conservative_shared_plan is None:
+                        conservative_shared_plan = ft_list_valid[0]
+
+                    best_plan = {
+                        "shared_plan": conservative_shared_plan,
+                        "cost": float(getattr(conservative_shared_plan, "cost", 0.0)),
+                        "recoverable": False,
+                        "missing_credible_modes": list(range(len(credible_joint_mode_selections))),
+                        "credible_set_size": len(credible_joint_mode_selections),
+                        "recoverability_enforced": recoverability_enforced,
+                        "used_shared_only_fallback": True,
+                    }
+                    ft_final_list.append(best_plan)
+                    print(
+                        f"[FrenetPlanner] timestep={self.ego_state.time_step}: "
+                        "falling back to conservative shared-only trajectory"
+                    )
+                else:
+                    best_plan = ft_final_list[0]
+
+                self.recoverability_history["selected_plan_recoverable_indicator"].append(
+                    int(best_plan.get("recoverable", True))
+                )
                 self._record_execution_dynamics(
                     time_step=self.ego_state.time_step,
                     best_plan=best_plan,
@@ -1363,6 +1398,93 @@ class FrenetPlanner(Planner):
             ),
         }
 
+    def _get_recoverability_config(self):
+        recoverability_cfg = {}
+        if isinstance(self.contingency_parameters, dict):
+            recoverability_cfg = self.contingency_parameters.get("recoverability", {})
+        if not isinstance(recoverability_cfg, dict):
+            recoverability_cfg = {}
+        return {
+            "enabled": bool(recoverability_cfg.get("enabled", True)),
+        }
+
+    def _recoverability_pressure_active(self):
+        activation_history = self.recoverability_history.get(
+            "recoverability_activation_indicator", []
+        )
+        selected_recoverable_history = self.recoverability_history.get(
+            "selected_plan_recoverable_indicator", []
+        )
+        activation_window = activation_history[-3:] if len(activation_history) >= 3 else activation_history
+        selected_window = (
+            selected_recoverable_history[-3:]
+            if len(selected_recoverable_history) >= 3
+            else selected_recoverable_history
+        )
+
+        if any(int(value) == 0 for value in selected_window):
+            return True
+        if any(int(value) == 1 for value in activation_window):
+            return True
+        return False
+
+    @staticmethod
+    def _aggregate_plan_risk(plan_candidate):
+        ego_risk_dict = getattr(plan_candidate, "ego_risk_dict", {})
+        obst_risk_dict = getattr(plan_candidate, "obst_risk_dict", {})
+
+        ego_risk_values = list(ego_risk_dict.values()) if isinstance(ego_risk_dict, dict) else []
+        obst_risk_values = list(obst_risk_dict.values()) if isinstance(obst_risk_dict, dict) else []
+        combined_risk = ego_risk_values + obst_risk_values
+        total_risk = float(sum(combined_risk)) if combined_risk else 0.0
+        max_risk = float(max(combined_risk)) if combined_risk else 0.0
+        return total_risk, max_risk
+
+    def _select_conservative_shared_fallback(self, shared_plan_candidates):
+        if not shared_plan_candidates:
+            return None
+
+        def conservative_priority(plan_candidate):
+            trajectory_prob_upper = getattr(
+                plan_candidate,
+                "trajectory_collision_prob_upper_bound",
+                None,
+            )
+            if trajectory_prob_upper is None or not np.isfinite(trajectory_prob_upper):
+                trajectory_prob_upper = 1.0
+            else:
+                trajectory_prob_upper = float(trajectory_prob_upper)
+
+            total_risk, max_risk = self._aggregate_plan_risk(plan_candidate)
+            mean_speed = (
+                float(np.mean(np.abs(plan_candidate.s_d)))
+                if hasattr(plan_candidate, "s_d") and len(plan_candidate.s_d) > 0
+                else float("inf")
+            )
+            terminal_speed = (
+                float(abs(plan_candidate.s_d[-1]))
+                if hasattr(plan_candidate, "s_d") and len(plan_candidate.s_d) > 0
+                else float("inf")
+            )
+            abs_terminal_offset = (
+                float(abs(plan_candidate.d[-1]))
+                if hasattr(plan_candidate, "d") and len(plan_candidate.d) > 0
+                else float("inf")
+            )
+            nominal_cost = float(getattr(plan_candidate, "cost", float("inf")))
+
+            return (
+                trajectory_prob_upper,
+                terminal_speed,
+                mean_speed,
+                max_risk,
+                total_risk,
+                abs_terminal_offset,
+                nominal_cost,
+            )
+
+        return min(shared_plan_candidates, key=conservative_priority)
+
     @staticmethod
     def _bhattacharyya_distance(mu_a, cov_a, mu_b, cov_b):
         mu_a = np.asarray(mu_a, dtype=float).reshape(-1)
@@ -1504,6 +1626,14 @@ class FrenetPlanner(Planner):
                 selected_idx = idx
                 selection_reason = "first_separable_candidate"
                 break
+
+        if self._recoverability_pressure_active() and selected_idx > 0:
+            if selection_reason == "first_separable_candidate":
+                selected_idx = max(0, selected_idx - 2)
+                selection_reason = "recoverability_pressure_aggressive_earlier_branch"
+            else:
+                selected_idx = 0
+                selection_reason = "recoverability_pressure_min_branch_time"
 
         return {
             "selected_branch_time": float(candidate_times[selected_idx]),
