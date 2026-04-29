@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 # ignore venv
 .venv38/*
+
+# generated experiment outputs
+planner/Frenet/results/

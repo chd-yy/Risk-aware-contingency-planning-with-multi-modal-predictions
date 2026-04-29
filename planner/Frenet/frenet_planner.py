@@ -123,6 +123,7 @@ from beliefplanning.planner.Frenet.utils.frenet_functions import (
     get_v_list,
     sort_frenet_trajectories,
 )
+from beliefplanning.planner.Frenet.utils.helper_functions import get_max_curvature
 
 # 日志
 from beliefplanning.planner.Frenet.utils.logging import FrenetLogging
@@ -771,6 +772,89 @@ class FrenetPlanner(Planner):
                 if mode_num not in final_plan
             ]
             return len(missing_modes) == 0, missing_modes
+
+        def _calc_branch_surrogate_cost(fp):
+            ego_risk_values = (
+                list(fp.ego_risk_dict.values())
+                if isinstance(getattr(fp, "ego_risk_dict", None), dict)
+                else []
+            )
+            obst_risk_values = (
+                list(fp.obst_risk_dict.values())
+                if isinstance(getattr(fp, "obst_risk_dict", None), dict)
+                else []
+            )
+
+            if len(ego_risk_values) > 0 or len(obst_risk_values) > 0:
+                total_risk = sum(ego_risk_values) + sum(obst_risk_values)
+                peak_risk = max(ego_risk_values + obst_risk_values)
+                terminal_speed = (
+                    abs(float(fp.s_d[-1]))
+                    if hasattr(fp, "s_d") and fp.s_d is not None and len(fp.s_d) > 0
+                    else 0.0
+                )
+                final_offset = (
+                    abs(float(fp.d[-1]))
+                    if hasattr(fp, "d") and fp.d is not None and len(fp.d) > 0
+                    else 0.0
+                )
+                return 4.0 * peak_risk + 2.0 * total_risk + 0.5 * terminal_speed + 0.1 * final_offset
+
+            max_acc_violation = 0.0
+            if hasattr(fp, "s_dd") and fp.s_dd is not None and len(fp.s_dd) > 0:
+                max_acc_violation = max(
+                    0.0,
+                    max(abs(float(acc_i)) for acc_i in fp.s_dd) - float(self.p.longitudinal.a_max),
+                )
+
+            max_curv_violation = 0.0
+            if (
+                hasattr(fp, "curv")
+                and fp.curv is not None
+                and len(fp.curv) > 0
+                and hasattr(fp, "v")
+                and fp.v is not None
+                and len(fp.v) == len(fp.curv)
+            ):
+                for curv_i, vel_i in zip(fp.curv, fp.v):
+                    curv_limit, _ = get_max_curvature(vehicle_params=self.p, v=float(vel_i))
+                    if curv_limit > 1e-9:
+                        max_curv_violation = max(
+                            max_curv_violation,
+                            max(0.0, abs(float(curv_i)) / float(curv_limit) - 1.0),
+                        )
+
+            terminal_speed = (
+                abs(float(fp.s_d[-1]))
+                if hasattr(fp, "s_d") and fp.s_d is not None and len(fp.s_d) > 0
+                else 0.0
+            )
+            final_offset = (
+                abs(float(fp.d[-1]))
+                if hasattr(fp, "d") and fp.d is not None and len(fp.d) > 0
+                else 0.0
+            )
+            return (
+                100.0 * max_acc_violation
+                + 100.0 * max_curv_violation
+                + 0.5 * terminal_speed
+                + 0.1 * final_offset
+            )
+
+        def _select_missing_branch_surrogate(ft_candidates):
+            if (not self._uses_missing_branch_surrogate()) or len(ft_candidates) == 0:
+                return None
+
+            best_candidate = None
+            best_cost = math.inf
+            for candidate in ft_candidates:
+                surrogate_cost = _calc_branch_surrogate_cost(candidate)
+                candidate.surrogate_cost = surrogate_cost
+                if surrogate_cost < best_cost:
+                    best_cost = surrogate_cost
+                    best_candidate = candidate
+
+            return best_candidate
         # =========================
         # F) 可达集计算(责任相关)
         # =========================
@@ -868,6 +952,7 @@ class FrenetPlanner(Planner):
                 for plan in ft_list_valid:
                     final_plan = {}   # 保存该 shared plan 对应的最佳 contingent plans(按 mode_num)
                     ft_all_plans = {} # 保存该 shared plan 及其所有 contingent candidates
+                    surrogate_branch_plans = {}
                     
                     # 根据 shared plan 末速度推 contingency 速度范围
                     max_v = min(
@@ -947,6 +1032,12 @@ class FrenetPlanner(Planner):
                             ft_conting_list_valid.sort(key=lambda fp: fp.cost, reverse=False)
                             if len(ft_conting_list_valid) > 0:
                                 final_plan[mode_num] = ft_conting_list_valid[0]
+                            else:
+                                surrogate_branch = _select_missing_branch_surrogate(
+                                    ft_contingent_list
+                                )
+                                if surrogate_branch is not None:
+                                    surrogate_branch_plans[mode_num] = surrogate_branch
 
                     recoverable, missing_credible_modes = _check_recoverability(
                         final_plan=final_plan,
@@ -956,6 +1047,14 @@ class FrenetPlanner(Planner):
                     final_plan["recoverable"] = recoverable
                     final_plan["missing_credible_modes"] = list(missing_credible_modes)
                     final_plan["credible_set_size"] = len(credible_joint_mode_selections)
+                    final_plan["surrogate_branch_plans"] = surrogate_branch_plans
+                    final_plan["surrogate_branch_modes"] = sorted(surrogate_branch_plans.keys())
+                    final_plan["missing_branch_mode_count"] = len(missing_credible_modes)
+                    final_plan["missing_branch_mode_ratio"] = (
+                        float(len(missing_credible_modes)) / float(len(credible_joint_mode_selections))
+                        if len(credible_joint_mode_selections) > 0
+                        else 0.0
+                    )
 
                     if recoverable:
                         recoverable_shared_plan_count += 1
@@ -988,16 +1087,16 @@ class FrenetPlanner(Planner):
                 # 将共享轨迹与各模式应急轨迹组合,形成总成本；权重来源于分支概率
                 # breakpoint()
                 for plan in ft_final_list:
-                    # if len(plan) == 1:
-                    #     # This means we have only a single plan along the horizon
-                    #     # 只有 shared_plan,没有 contingent(例如 t_list[0]==0 或没算 contingent)
-                    #     plan['cost'] = plan['shared_plan'].cost
-                    # else:
                     plan['cost'] = plan['shared_plan'].cost
                     if self._uses_branch_cost_in_ranking():
                         for mode_num, mode_weight in enumerate(credible_joint_mode_weights):
                             if mode_num in plan:
                                 plan['cost'] += mode_weight * plan[mode_num].cost
+                            elif mode_num in plan.get("surrogate_branch_plans", {}):
+                                plan['cost'] += (
+                                    mode_weight
+                                    * plan["surrogate_branch_plans"][mode_num].surrogate_cost
+                                )
 
                 # sort the final plan
                 # 最终按总代价排序,ft_final_list[0] 就是全计划最优
@@ -1303,7 +1402,10 @@ class FrenetPlanner(Planner):
         return self.method_variant in {"ours", "fixed_cp", "ours_wo_CS"}
 
     def _uses_branch_cost_in_ranking(self):
-        return self.method_variant != "ours_wo_Rec"
+        return True
+
+    def _uses_missing_branch_surrogate(self):
+        return self.method_variant == "ours_wo_Rec"
 
     def _get_single_shared_horizon_time(self):
         if isinstance(self.contingency_parameters, dict) and "t_list" in self.contingency_parameters:
@@ -1601,31 +1703,14 @@ class FrenetPlanner(Planner):
         threshold = float(config["separability_threshold"])
         selected_idx = len(candidate_times) - 1
         selection_reason = "fallback_latest_branch_time"
-        if self.method_variant == "ours_wo_Rec":
-            selected_idx = 0
-            return {
-                "selected_branch_time": float(candidate_times[selected_idx]),
-                "selected_branch_step": int(
-                    round(float(candidate_times[selected_idx]) / self.scenario.dt)
-                ),
-                "selected_separability": float(separability_series[selected_idx]),
-                "separability_threshold": threshold,
-                "candidate_times": candidate_times,
-                "separability_series": separability_series,
-                "selection_reason": "earliest_candidate_ablation",
-            }
         separable_indices = [
             idx
             for idx, separability_value in enumerate(separability_series)
             if separability_value >= threshold
         ]
         if len(separable_indices) > 0:
-            if self.method_variant == "ours_wo_Rec":
-                selected_idx = separable_indices[-1]
-                selection_reason = "latest_separable_candidate_ablation"
-            else:
-                selected_idx = separable_indices[0]
-                selection_reason = "first_separable_candidate"
+            selected_idx = separable_indices[0]
+            selection_reason = "first_separable_candidate"
 
         return {
             "selected_branch_time": float(candidate_times[selected_idx]),
