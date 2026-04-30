@@ -104,7 +104,7 @@ from beliefplanning.planner.Frenet.utils.prediction_helpers import (
     get_prediction_from_scenario_tree, # 你在 _step_planner 里用这个把 zPred -> predictions
     build_multimodal_gmm_predictions,
     get_rule_based_base_predictions,
-    update_yield_challenge_belief,
+    update_interaction_mode_belief,
 )
 
 # 读取 json 配置:伤害模型/规划参数/风险参数/权重/应急规划参数
@@ -333,6 +333,16 @@ class FrenetPlanner(Planner):
                 # 记录感知范围与模式,用于后续过滤障碍物以及选择预测器
                 self.sensor_radius = sensor_radius
                 self.mode = mode
+                self.intent_mode_count = 2
+                if isinstance(settings, dict):
+                    self.intent_mode_count = int(
+                        settings.get(
+                            "intent_mode_count",
+                            settings.get("evaluation_settings", {}).get("intent_mode_count", 2),
+                        )
+                    )
+                if self.intent_mode_count not in {2, 4}:
+                    self.intent_mode_count = 2
 
                 # get visualization marker
                 # 可视化开关
@@ -597,6 +607,7 @@ class FrenetPlanner(Planner):
                         obstacle_id_list=list(base_predictions.keys()),
                         horizon=pred_horizon,
                         timestep=self.ego_state.time_step,
+                        mode_count=self.intent_mode_count,
                     )
             elif len(visible_obstacle_ids) > 0:
                 predictions = get_ground_truth_prediction(
@@ -611,13 +622,14 @@ class FrenetPlanner(Planner):
                     predictions,
                     self.scenario,
                 )
-                predictions, self.obstacle_mode_belief = update_yield_challenge_belief(
+                predictions, self.obstacle_mode_belief = update_interaction_mode_belief(
                     predictions=predictions,
                     scenario=self.scenario,
                     ego_state=self.ego_state,
                     time_step=self.ego_state.time_step,
                     prior_belief=self.obstacle_mode_belief,
                     dt=self.scenario.dt,
+                    mode_count=self.intent_mode_count,
                 )
                 prediction_belief = {
                     obstacle_id: pred["mode_prob"]
@@ -1694,6 +1706,116 @@ class FrenetPlanner(Planner):
             )
             plt.close(fig)
 
+        sorted_obstacle_ids = sorted(self.obstacle_belief_history.keys())
+        if len(sorted_obstacle_ids) > 0:
+            selected_obstacle_ids = sorted_obstacle_ids[:2]
+            posterior_colors = ["#1f77b4", "#d62728", "#2ca02c", "#9467bd"]
+
+            for subplot_idx, obstacle_id in enumerate(selected_obstacle_ids):
+                fig, ax = plt.subplots(
+                    1,
+                    1,
+                    figsize=(10.8, 5.8),
+                    constrained_layout=False,
+                )
+                fig.subplots_adjust(left=0.10, right=0.72, top=0.90, bottom=0.20)
+                history = self.obstacle_belief_history[obstacle_id]
+                times_s = np.asarray(history["timesteps"], dtype=float) * dt
+                belief_series = history["beliefs"]
+                mode_behavior = history.get("mode_behavior", [])
+                mode_count = max(len(values) for values in belief_series)
+                figure_key = f"figure2({chr(ord('a') + subplot_idx)})"
+                figure_dump = {
+                    "figure_name": figure_key,
+                    "obstacle_id": int(obstacle_id),
+                    "title": f"({chr(ord('a') + subplot_idx)}) 障碍车{subplot_idx + 1}意图后验演化",
+                    "x_label": "时间 / s",
+                    "y_label": "后验概率",
+                    "series": [],
+                }
+
+                for mode_idx in range(mode_count):
+                    mode_values = [
+                        values[mode_idx] if mode_idx < len(values) else np.nan
+                        for values in belief_series
+                    ]
+                    if mode_idx < len(mode_behavior):
+                        behavior = str(mode_behavior[mode_idx]).lower()
+                        if behavior == "yield":
+                            label = "让行模式后验"
+                        elif behavior == "yield_strong":
+                            label = "强让行模式后验"
+                        elif behavior == "yield_soft":
+                            label = "弱让行模式后验"
+                        elif behavior == "challenge":
+                            label = "抢行模式后验"
+                        elif behavior == "challenge_soft":
+                            label = "弱抢行模式后验"
+                        elif behavior == "challenge_hard":
+                            label = "强抢行模式后验"
+                        else:
+                            label = f"模式{mode_idx + 1}后验"
+                    else:
+                        label = f"模式{mode_idx + 1}后验"
+                    self._plot_smoothed_publication_curve(
+                        ax=ax,
+                        x_values=times_s,
+                        y_values=mode_values,
+                        color=posterior_colors[mode_idx % len(posterior_colors)],
+                        label=label,
+                        linewidth=2.0,
+                        marker="o",
+                        markersize=3.5,
+                    )
+                    curve_data = self._build_publication_curve_data(
+                        x_values=times_s,
+                        y_values=mode_values,
+                    )
+                    figure_dump["series"].append(
+                        {
+                            "mode_index": int(mode_idx),
+                            "mode_behavior": (
+                                str(mode_behavior[mode_idx])
+                                if mode_idx < len(mode_behavior)
+                                else None
+                            ),
+                            "label": label,
+                            "color": posterior_colors[mode_idx % len(posterior_colors)],
+                            "curve_data": curve_data,
+                        }
+                    )
+
+                self._style_publication_axis(ax=ax, latin_prop=latin_prop, tick_size=12)
+                self._apply_axis_labels(
+                    ax=ax,
+                    xlabel="时间 / s",
+                    ylabel="后验概率",
+                    title=f"({chr(ord('a') + subplot_idx)}) 障碍车{subplot_idx + 1}意图后验演化",
+                    chinese_prop=chinese_prop,
+                )
+                ax.tick_params(axis="x", labelbottom=True)
+                ax.xaxis.labelpad = 4.0
+                for text in ax.texts[-1:]:
+                    text.set_y(-0.18)
+                ax.set_ylim(0.0, 1.30)
+                legend = ax.legend(
+                    loc="upper right",
+                    ncol=1,
+                    frameon=True,
+                    framealpha=0.96,
+                    prop=chinese_prop,
+                )
+                legend.get_frame().set_edgecolor("black")
+                legend.get_frame().set_linewidth(0.9)
+
+                self._save_publication_figure(
+                    fig=fig,
+                    output_path_stem=output_path.joinpath(
+                        figure_key
+                    ),
+                )
+                plt.close(fig)
+                publication_figure_dump["figures"][figure_key] = figure_dump
         joint_timesteps = self.joint_belief_history.get("timesteps", [])
         joint_weight_series = self.joint_belief_history.get("joint_weights", [])
         joint_labels = self.joint_belief_history.get("joint_mode_labels", [])
