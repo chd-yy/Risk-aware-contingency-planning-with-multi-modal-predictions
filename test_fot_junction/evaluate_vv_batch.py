@@ -568,6 +568,7 @@ def main():
     parser.add_argument("--risk-config", default="risk.json")
     parser.add_argument("--fps", type=int, default=10)
     parser.add_argument("--experiment-tag", default="")
+    parser.add_argument("--intent-mode-count", type=int, choices=[2, 4], default=2)
     parser.add_argument("--recoverability-enabled", choices=["true", "false"], default=None)
     parser.add_argument("--longitudinal-a-max-scale", type=float, default=None)
     parser.add_argument("--lateral-a-max-scale", type=float, default=None)
@@ -585,6 +586,8 @@ def main():
     settings = load_planning_json(args.planning_config)
     settings["contingency_settings"] = load_contingency_json(args.contingency_config)
     settings["risk_dict"] = load_risk_json(args.risk_config)
+    settings["intent_mode_count"] = int(args.intent_mode_count)
+    settings["evaluation_settings"]["intent_mode_count"] = int(args.intent_mode_count)
     settings["evaluation_settings"]["show_visualization"] = True
     settings["evaluation_settings"]["timing_enabled"] = True
     settings["risk_dict"]["figures"]["create_figures"] = False
