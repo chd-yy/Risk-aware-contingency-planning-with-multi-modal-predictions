@@ -105,7 +105,7 @@ from beliefplanning.planner.Frenet.utils.prediction_helpers import (
     get_prediction_from_scenario_tree, # 你在 _step_planner 里用这个把 zPred -> predictions
     build_multimodal_gmm_predictions,
     get_rule_based_base_predictions,
-    update_yield_challenge_belief,
+    update_interaction_mode_belief,
 )
 
 # 读取 json 配置:伤害模型/规划参数/风险参数/权重/应急规划参数
@@ -334,6 +334,16 @@ class FrenetPlanner(Planner):
                 # 记录感知范围与模式,用于后续过滤障碍物以及选择预测器
                 self.sensor_radius = sensor_radius
                 self.mode = mode
+                self.intent_mode_count = 2
+                if isinstance(settings, dict):
+                    self.intent_mode_count = int(
+                        settings.get(
+                            "intent_mode_count",
+                            settings.get("evaluation_settings", {}).get("intent_mode_count", 2),
+                        )
+                    )
+                if self.intent_mode_count not in {2, 4}:
+                    self.intent_mode_count = 2
 
                 # get visualization marker
                 # 可视化开关
@@ -595,6 +605,7 @@ class FrenetPlanner(Planner):
                         obstacle_id_list=list(base_predictions.keys()),
                         horizon=pred_horizon,
                         timestep=self.ego_state.time_step,
+                        mode_count=self.intent_mode_count,
                     )
             elif len(visible_obstacle_ids) > 0:
                 predictions = get_ground_truth_prediction(
@@ -609,13 +620,14 @@ class FrenetPlanner(Planner):
                     predictions,
                     self.scenario,
                 )
-                predictions, self.obstacle_mode_belief = update_yield_challenge_belief(
+                predictions, self.obstacle_mode_belief = update_interaction_mode_belief(
                     predictions=predictions,
                     scenario=self.scenario,
                     ego_state=self.ego_state,
                     time_step=self.ego_state.time_step,
                     prior_belief=self.obstacle_mode_belief,
                     dt=self.scenario.dt,
+                    mode_count=self.intent_mode_count,
                 )
                 prediction_belief = {
                     obstacle_id: pred["mode_prob"]
@@ -1962,8 +1974,16 @@ class FrenetPlanner(Planner):
                         behavior = str(mode_behavior[mode_idx]).lower()
                         if behavior == "yield":
                             label = "让行模式后验"
+                        elif behavior == "yield_strong":
+                            label = "强让行模式后验"
+                        elif behavior == "yield_soft":
+                            label = "弱让行模式后验"
                         elif behavior == "challenge":
                             label = "抢行模式后验"
+                        elif behavior == "challenge_soft":
+                            label = "弱抢行模式后验"
+                        elif behavior == "challenge_hard":
+                            label = "强抢行模式后验"
                         else:
                             label = f"模式{mode_idx + 1}后验"
                     else:
