@@ -414,21 +414,157 @@ def _get_speed_trend(speed_history, dt: float):
     return speed_delta, mean_acc
 
 
-def update_yield_challenge_belief(
+def _compute_mode_reference_speed(traj, dt):
+    traj_array = np.asarray(traj, dtype=float)
+    if traj_array.ndim != 2 or len(traj_array) < 2:
+        return 0.0
+    return float(np.linalg.norm(traj_array[1] - traj_array[0]) / max(dt, 1e-3))
+
+
+def _compute_yield_challenge_coarse_likelihoods(
+        observed_speed,
+        observed_acc,
+        speed_delta,
+        mean_trend_acc,
+        obstacle_state,
+        ego_line,
+        ego_speed,
+        challenge_reference_traj,
+        yield_ref_speed,
+        challenge_ref_speed,
+        dt,
+):
+    yield_likelihood = _gaussian_likelihood(
+        observed_speed,
+        yield_ref_speed,
+        sigma=max(0.5, 0.35 * max(challenge_ref_speed, 1e-3)),
+    )
+    challenge_likelihood = _gaussian_likelihood(
+        observed_speed,
+        challenge_ref_speed,
+        sigma=max(0.5, 0.35 * max(challenge_ref_speed, 1e-3)),
+    )
+
+    if speed_delta < -0.6:
+        yield_likelihood *= 2.2
+        challenge_likelihood *= 0.55
+    elif speed_delta > 0.4:
+        challenge_likelihood *= 1.8
+        yield_likelihood *= 0.8
+
+    if mean_trend_acc < -0.35:
+        yield_likelihood *= 1.0 + min(2.5, -mean_trend_acc)
+        challenge_likelihood *= 0.7
+    elif mean_trend_acc > 0.25:
+        challenge_likelihood *= 1.0 + min(2.0, mean_trend_acc)
+        yield_likelihood *= 0.8
+
+    challenge_reference_traj = np.asarray(challenge_reference_traj, dtype=float)
+    conflict_point = _extract_first_conflict_point(ego_line, challenge_reference_traj)
+    if conflict_point is not None:
+        challenge_line = LineString(challenge_reference_traj)
+        obstacle_progress = challenge_line.project(
+            Point(float(obstacle_state.position[0]), float(obstacle_state.position[1]))
+        )
+        conflict_progress = challenge_line.project(
+            Point(float(conflict_point[0]), float(conflict_point[1]))
+        )
+        obstacle_distance_to_conflict = max(0.0, float(conflict_progress - obstacle_progress))
+        obstacle_ttc = obstacle_distance_to_conflict / max(observed_speed, 0.1)
+
+        ego_distance_to_conflict = max(
+            0.0,
+            float(ego_line.project(Point(float(conflict_point[0]), float(conflict_point[1])))),
+        )
+        ego_ttc = ego_distance_to_conflict / ego_speed
+
+        ttc_margin = 1.0
+        if ego_ttc + ttc_margin < obstacle_ttc:
+            yield_likelihood *= 2.5
+            challenge_likelihood *= 0.6
+        elif obstacle_ttc + 0.5 < ego_ttc:
+            challenge_likelihood *= 2.2
+            yield_likelihood *= 0.7
+
+        if obstacle_distance_to_conflict < 25.0:
+            if ego_ttc <= obstacle_ttc + 1.5 and (
+                observed_acc < -0.2 or mean_trend_acc < -0.25 or speed_delta < -0.4
+            ):
+                yield_likelihood *= 4.5
+                challenge_likelihood *= 0.2
+            elif obstacle_ttc + 0.8 < ego_ttc and mean_trend_acc > -0.1:
+                challenge_likelihood *= 2.5
+                yield_likelihood *= 0.5
+
+            if observed_acc < -0.2:
+                yield_likelihood *= (1.0 + min(2.0, -observed_acc))
+                challenge_likelihood *= 0.7
+            elif observed_acc > 0.2:
+                challenge_likelihood *= (1.0 + min(2.0, observed_acc))
+                yield_likelihood *= 0.8
+
+    return float(yield_likelihood), float(challenge_likelihood)
+
+
+def _compute_mode_split_likelihoods(mode_group_name, reference_speeds, observed_speed, observed_acc):
+    if len(reference_speeds) == 0:
+        return np.array([], dtype=float)
+
+    sigma = max(0.35, 0.25 * max(max(reference_speeds), 1e-3))
+    likelihoods = np.array(
+        [
+            _gaussian_likelihood(observed_speed, ref_speed, sigma=sigma)
+            for ref_speed in reference_speeds
+        ],
+        dtype=float,
+    )
+
+    speed_center = float(np.mean(reference_speeds))
+    if mode_group_name == "yield":
+        if len(reference_speeds) >= 2:
+            if observed_speed <= speed_center:
+                likelihoods[0] *= 1.35
+                likelihoods[-1] *= 0.85
+            else:
+                likelihoods[0] *= 0.85
+                likelihoods[-1] *= 1.20
+        if observed_acc < -0.15:
+            likelihoods[0] *= 1.0 + min(1.2, -observed_acc)
+        elif observed_acc > 0.15 and len(reference_speeds) >= 2:
+            likelihoods[-1] *= 1.0 + min(0.8, observed_acc)
+    elif mode_group_name == "challenge":
+        if len(reference_speeds) >= 2:
+            if observed_speed >= speed_center:
+                likelihoods[-1] *= 1.35
+                likelihoods[0] *= 0.85
+            else:
+                likelihoods[-1] *= 0.90
+                likelihoods[0] *= 1.15
+        if observed_acc > 0.15:
+            likelihoods[-1] *= 1.0 + min(1.2, observed_acc)
+        elif observed_acc < -0.15 and len(reference_speeds) >= 2:
+            likelihoods[0] *= 1.0 + min(0.8, -observed_acc)
+
+    return np.clip(likelihoods, 1e-6, None)
+
+
+def update_interaction_mode_belief(
         predictions: dict,
         scenario,
         ego_state,
         time_step: int,
         prior_belief: dict = None,
         dt: float = None,
+        mode_count: int = 2,
 ):
     if predictions is None or len(predictions) == 0:
         return {}, {} if prior_belief is None else prior_belief
 
     if dt is None:
         dt = scenario.dt
+    mode_count = 4 if int(mode_count) == 4 else 2
     forgetting_factor = 0.72
-    neutral_prior = np.array([0.5, 0.5], dtype=float)
+    neutral_prior = np.full(mode_count, 1.0 / float(mode_count), dtype=float)
     updated_predictions = predictions
     updated_belief = {} if prior_belief is None else dict(prior_belief)
 
@@ -438,12 +574,19 @@ def update_yield_challenge_belief(
 
     for obstacle_id, pred in updated_predictions.items():
         pos_list = pred.get("pos_list")
-        if not isinstance(pos_list, list) or len(pos_list) < 2:
+        required_modes = 4 if mode_count == 4 else 2
+        if not isinstance(pos_list, list) or len(pos_list) < required_modes:
             continue
 
-        prior = np.asarray(updated_belief.get(obstacle_id, pred.get("mode_prob", [0.5, 0.5])), dtype=float)
-        if prior.shape[0] != 2:
-            prior = np.array([0.5, 0.5], dtype=float)
+        prior = np.asarray(
+            updated_belief.get(
+                obstacle_id,
+                pred.get("mode_prob", neutral_prior.tolist()),
+            ),
+            dtype=float,
+        )
+        if prior.shape[0] != mode_count:
+            prior = neutral_prior.copy()
         prior = np.clip(prior, 1e-6, None)
         prior = prior / np.sum(prior)
         prior = forgetting_factor * prior + (1.0 - forgetting_factor) * neutral_prior
@@ -456,81 +599,88 @@ def update_yield_challenge_belief(
         speed_history = _get_recent_obstacle_speeds(obstacle, time_step=time_step, window=5)
         speed_delta, mean_trend_acc = _get_speed_trend(speed_history, dt=dt)
 
-        yield_traj = np.asarray(pos_list[0], dtype=float)
-        challenge_traj = np.asarray(pos_list[1], dtype=float)
-        if len(yield_traj) < 2 or len(challenge_traj) < 2:
+        if mode_count == 4:
+            yield_group = [np.asarray(pos_list[0], dtype=float), np.asarray(pos_list[1], dtype=float)]
+            challenge_group = [np.asarray(pos_list[2], dtype=float), np.asarray(pos_list[3], dtype=float)]
+        else:
+            yield_group = [np.asarray(pos_list[0], dtype=float)]
+            challenge_group = [np.asarray(pos_list[1], dtype=float)]
+
+        if any(len(traj) < 2 for traj in yield_group + challenge_group):
             pred["mode_prob"] = prior.tolist()
             updated_belief[obstacle_id] = prior.tolist()
             continue
 
-        yield_ref_speed = np.linalg.norm(yield_traj[1] - yield_traj[0]) / max(dt, 1e-3)
-        challenge_ref_speed = np.linalg.norm(challenge_traj[1] - challenge_traj[0]) / max(dt, 1e-3)
+        yield_ref_speed = _compute_mode_reference_speed(yield_group[-1], dt)
+        challenge_ref_speed = _compute_mode_reference_speed(challenge_group[-1], dt)
+        coarse_yield_likelihood, coarse_challenge_likelihood = _compute_yield_challenge_coarse_likelihoods(
+            observed_speed=observed_speed,
+            observed_acc=observed_acc,
+            speed_delta=speed_delta,
+            mean_trend_acc=mean_trend_acc,
+            obstacle_state=obstacle_state,
+            ego_line=ego_line,
+            ego_speed=ego_speed,
+            challenge_reference_traj=challenge_group[-1],
+            yield_ref_speed=yield_ref_speed,
+            challenge_ref_speed=challenge_ref_speed,
+            dt=dt,
+        )
 
-        yield_likelihood = _gaussian_likelihood(observed_speed, yield_ref_speed, sigma=max(0.5, 0.35 * challenge_ref_speed))
-        challenge_likelihood = _gaussian_likelihood(observed_speed, challenge_ref_speed, sigma=max(0.5, 0.35 * challenge_ref_speed))
-
-        if speed_delta < -0.6:
-            yield_likelihood *= 2.2
-            challenge_likelihood *= 0.55
-        elif speed_delta > 0.4:
-            challenge_likelihood *= 1.8
-            yield_likelihood *= 0.8
-
-        if mean_trend_acc < -0.35:
-            yield_likelihood *= 1.0 + min(2.5, -mean_trend_acc)
-            challenge_likelihood *= 0.7
-        elif mean_trend_acc > 0.25:
-            challenge_likelihood *= 1.0 + min(2.0, mean_trend_acc)
-            yield_likelihood *= 0.8
-
-        conflict_point = _extract_first_conflict_point(ego_line, challenge_traj)
-        if conflict_point is not None:
-            challenge_line = LineString(challenge_traj)
-            obstacle_progress = challenge_line.project(
-                Point(float(obstacle_state.position[0]), float(obstacle_state.position[1]))
+        if mode_count == 4:
+            coarse_prior = np.array(
+                [
+                    float(np.sum(prior[:2])),
+                    float(np.sum(prior[2:])),
+                ],
+                dtype=float,
             )
-            conflict_progress = challenge_line.project(
-                Point(float(conflict_point[0]), float(conflict_point[1]))
+            coarse_likelihood = np.array(
+                [coarse_yield_likelihood, coarse_challenge_likelihood],
+                dtype=float,
             )
-            obstacle_distance_to_conflict = max(0.0, float(conflict_progress - obstacle_progress))
-            obstacle_ttc = obstacle_distance_to_conflict / max(observed_speed, 0.1)
+            coarse_posterior = coarse_prior * np.clip(coarse_likelihood, 1e-6, None)
+            coarse_sum = np.sum(coarse_posterior)
+            if coarse_sum <= 0.0:
+                coarse_posterior = np.array([0.5, 0.5], dtype=float)
+            else:
+                coarse_posterior = coarse_posterior / coarse_sum
 
-            ego_distance_to_conflict = max(
-                0.0,
-                float(ego_line.project(Point(float(conflict_point[0]), float(conflict_point[1])))),
+            yield_split_prior = np.clip(prior[:2], 1e-6, None)
+            yield_split_prior = yield_split_prior / np.sum(yield_split_prior)
+            challenge_split_prior = np.clip(prior[2:], 1e-6, None)
+            challenge_split_prior = challenge_split_prior / np.sum(challenge_split_prior)
+
+            yield_split_likelihood = _compute_mode_split_likelihoods(
+                mode_group_name="yield",
+                reference_speeds=[_compute_mode_reference_speed(traj, dt) for traj in yield_group],
+                observed_speed=observed_speed,
+                observed_acc=observed_acc,
             )
-            ego_ttc = ego_distance_to_conflict / ego_speed
+            challenge_split_likelihood = _compute_mode_split_likelihoods(
+                mode_group_name="challenge",
+                reference_speeds=[_compute_mode_reference_speed(traj, dt) for traj in challenge_group],
+                observed_speed=observed_speed,
+                observed_acc=observed_acc,
+            )
 
-            ttc_margin = 1.0
-            if ego_ttc + ttc_margin < obstacle_ttc:
-                yield_likelihood *= 2.5
-                challenge_likelihood *= 0.6
-            elif obstacle_ttc + 0.5 < ego_ttc:
-                challenge_likelihood *= 2.2
-                yield_likelihood *= 0.7
+            yield_split_posterior = yield_split_prior * yield_split_likelihood
+            challenge_split_posterior = challenge_split_prior * challenge_split_likelihood
+            yield_split_posterior = yield_split_posterior / max(np.sum(yield_split_posterior), 1e-6)
+            challenge_split_posterior = challenge_split_posterior / max(np.sum(challenge_split_posterior), 1e-6)
 
-            if obstacle_distance_to_conflict < 25.0:
-                if ego_ttc <= obstacle_ttc + 1.5 and (
-                    observed_acc < -0.2 or mean_trend_acc < -0.25 or speed_delta < -0.4
-                ):
-                    yield_likelihood *= 4.5
-                    challenge_likelihood *= 0.2
-                elif obstacle_ttc + 0.8 < ego_ttc and mean_trend_acc > -0.1:
-                    challenge_likelihood *= 2.5
-                    yield_likelihood *= 0.5
-
-                if observed_acc < -0.2:
-                    yield_likelihood *= (1.0 + min(2.0, -observed_acc))
-                    challenge_likelihood *= 0.7
-                elif observed_acc > 0.2:
-                    challenge_likelihood *= (1.0 + min(2.0, observed_acc))
-                    yield_likelihood *= 0.8
-
-        likelihood = np.array([yield_likelihood, challenge_likelihood], dtype=float)
-        posterior = prior * np.clip(likelihood, 1e-6, None)
+            posterior = np.concatenate(
+                [
+                    coarse_posterior[0] * yield_split_posterior,
+                    coarse_posterior[1] * challenge_split_posterior,
+                ]
+            )
+        else:
+            likelihood = np.array([coarse_yield_likelihood, coarse_challenge_likelihood], dtype=float)
+            posterior = prior * np.clip(likelihood, 1e-6, None)
         posterior_sum = np.sum(posterior)
         if posterior_sum <= 0.0:
-            posterior = np.array([0.5, 0.5], dtype=float)
+            posterior = neutral_prior.copy()
         else:
             posterior = posterior / posterior_sum
         posterior = 0.92 * posterior + 0.08 * neutral_prior
@@ -540,6 +690,25 @@ def update_yield_challenge_belief(
         updated_belief[obstacle_id] = posterior.tolist()
 
     return updated_predictions, updated_belief
+
+
+def update_yield_challenge_belief(
+        predictions: dict,
+        scenario,
+        ego_state,
+        time_step: int,
+        prior_belief: dict = None,
+        dt: float = None,
+):
+    return update_interaction_mode_belief(
+        predictions=predictions,
+        scenario=scenario,
+        ego_state=ego_state,
+        time_step=time_step,
+        prior_belief=prior_belief,
+        dt=dt,
+        mode_count=2,
+    )
 
 
 def _lanelet_heading(lanelet):
@@ -704,7 +873,7 @@ def _wrap_to_pi(angle):
     return (angle + np.pi) % (2.0 * np.pi) - np.pi
 
 
-def _build_yield_challenge_mode_trajectories(obstacle_state, base_mean, horizon, dt):
+def _build_yield_challenge_mode_trajectories(obstacle_state, base_mean, horizon, dt, mode_count=2):
     base_points = np.asarray(base_mean, dtype=float)
     current_pos = np.asarray(obstacle_state.position, dtype=float)
 
@@ -724,8 +893,12 @@ def _build_yield_challenge_mode_trajectories(obstacle_state, base_mean, horizon,
     path_lengths = _polyline_arc_lengths(path_points)
     path_total_length = float(path_lengths[-1])
 
+    mode_count = 4 if int(mode_count) == 4 else 2
+
     if horizon <= 1 or path_total_length < 1e-6:
         repeated = np.repeat(path_points[:1], max(horizon, 1), axis=0)
+        if mode_count == 4:
+            return [repeated.copy(), repeated.copy(), repeated.copy(), repeated.copy()]
         return [repeated, repeated.copy()]
 
     base_ds = path_total_length / max(horizon - 1, 1)
@@ -733,6 +906,18 @@ def _build_yield_challenge_mode_trajectories(obstacle_state, base_mean, horizon,
 
     challenge_ds = base_speed * dt
     yield_ds = min(challenge_ds * 0.35, 1.0)
+
+    if mode_count == 4:
+        challenge_hard_ds = max(challenge_ds * 1.15, challenge_ds + 0.15)
+        challenge_soft_ds = max(challenge_ds * 0.90, yield_ds + 0.10)
+        yield_soft_ds = min(max(yield_ds * 1.45, 0.55 * challenge_ds), challenge_soft_ds * 0.92)
+        yield_strong_ds = min(yield_ds, max(0.20, 0.30 * challenge_ds))
+        return [
+            _sample_polyline(path_points, 0.0, yield_strong_ds, horizon),
+            _sample_polyline(path_points, 0.0, yield_soft_ds, horizon),
+            _sample_polyline(path_points, 0.0, challenge_soft_ds, horizon),
+            _sample_polyline(path_points, 0.0, challenge_hard_ds, horizon),
+        ]
 
     challenge_traj = _sample_polyline(path_points, 0.0, challenge_ds, horizon)
     yield_traj = _sample_polyline(path_points, 0.0, yield_ds, horizon)
@@ -892,6 +1077,7 @@ def build_multimodal_gmm_predictions(
         max_modes: int = 3,
         likelihood_temperature: float = 1.0,
         timestep: int = None,
+        mode_count: int = 2,
 ):
     """
     Step (iii): turn single-modal predictor output into multi-modal GMM-like prediction.
@@ -974,6 +1160,7 @@ def build_multimodal_gmm_predictions(
             base_mean=base_mean,
             horizon=horizon_len,
             dt=scenario.dt,
+            mode_count=mode_count,
         )
         # ------------------------------------------------------------------
         # Step 7: 初始化多模态结果容器
@@ -982,7 +1169,15 @@ def build_multimodal_gmm_predictions(
         mode_pos_list = []
         # 保存每个 mode 的未来协方差序列
         mode_cov_list = []
-        mode_behavior_list = ["yield", "challenge"]
+        if int(mode_count) == 4:
+            mode_behavior_list = [
+                "yield_strong",
+                "yield_soft",
+                "challenge_soft",
+                "challenge_hard",
+            ]
+        else:
+            mode_behavior_list = ["yield", "challenge"]
         # 保存每个 mode 的“对数似然”分数，后面用于 softmax 得到概率
         mode_log_likelihood = []
         eps = 1e-6
