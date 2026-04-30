@@ -184,6 +184,28 @@ def _canonicalize_joint_label(label: str) -> str:
     return ", ".join(sorted(parts))
 
 
+def _coarsen_intent_label(intent_label: str) -> str:
+    label = str(intent_label).strip().lower()
+    if label.startswith("yield"):
+        return "yield"
+    if label.startswith("challenge"):
+        return "challenge"
+    return label
+
+
+def _coarsen_joint_label(label: str) -> str:
+    parts = []
+    for part in str(label).split(","):
+        token = part.strip()
+        if "=" not in token:
+            continue
+        obstacle_id_str, intent_label = token.split("=", 1)
+        parts.append(
+            f"{obstacle_id_str.strip()}={_coarsen_intent_label(intent_label)}"
+        )
+    return _canonicalize_joint_label(", ".join(parts))
+
+
 def _extract_obstacle_ids_from_labels(labels: List[str]) -> List[int]:
     obstacle_ids = set()
     for label in labels:
@@ -205,6 +227,17 @@ def _actual_joint_label(intent_map: Dict[int, str], obstacle_ids: List[int]) -> 
         if obstacle_id not in intent_map:
             continue
         parts.append(f"{int(obstacle_id)}={intent_map[obstacle_id]}")
+    return _canonicalize_joint_label(", ".join(parts))
+
+
+def _actual_joint_label_coarse(intent_map: Dict[int, str], obstacle_ids: List[int]) -> str:
+    parts = []
+    for obstacle_id in obstacle_ids:
+        if obstacle_id not in intent_map:
+            continue
+        parts.append(
+            f"{int(obstacle_id)}={_coarsen_intent_label(intent_map[obstacle_id])}"
+        )
     return _canonicalize_joint_label(", ".join(parts))
 
 
@@ -324,13 +357,20 @@ def _scenario_metrics(
             )
 
     coverage_hits = []
+    coarse_coverage_hits = []
     for timestep, label_list in zip(credible_timesteps, credible_labels):
         actual_intents = evaluator.intent_history.get(int(timestep), {})
         obstacle_ids = _extract_obstacle_ids_from_labels(label_list)
         actual_label = _actual_joint_label(actual_intents, obstacle_ids)
+        actual_label_coarse = _actual_joint_label_coarse(actual_intents, obstacle_ids)
         canonical_credible = {_canonicalize_joint_label(label) for label in label_list}
+        canonical_credible_coarse = {_coarsen_joint_label(label) for label in label_list}
         if actual_label:
             coverage_hits.append(1 if actual_label in canonical_credible else 0)
+        if actual_label_coarse:
+            coarse_coverage_hits.append(
+                1 if actual_label_coarse in canonical_credible_coarse else 0
+            )
 
     reason = return_dict.get("reason_for_failure")
     collision = (not bool(return_dict.get("success", False))) and (
@@ -359,6 +399,9 @@ def _scenario_metrics(
         ),
         "Omega_bar": float(np.mean(credible_sizes)) if credible_sizes else None,
         "C_Omega": float(np.mean(coverage_hits)) if coverage_hits else None,
+        "C_Omega_coarse": (
+            float(np.mean(coarse_coverage_hits)) if coarse_coverage_hits else None
+        ),
         "URR": (
             float(np.mean(unrecoverable_ratio_series))
             if unrecoverable_ratio_series
@@ -414,6 +457,21 @@ def _aggregate_summary(per_scenario_metrics: List[Dict]) -> Dict:
         for item in per_scenario_metrics
         if item["C_Omega"] is not None
     ]
+    coarse_coverage_values = [
+        float(item["C_Omega_coarse"])
+        for item in per_scenario_metrics
+        if item["C_Omega_coarse"] is not None
+    ]
+    activation_values = [
+        float(item["recoverability_activation_ratio"])
+        for item in per_scenario_metrics
+        if item["recoverability_activation_ratio"] is not None
+    ]
+    selected_unrecoverable_values = [
+        float(item["selected_plan_unrecoverable_ratio"])
+        for item in per_scenario_metrics
+        if item["selected_plan_unrecoverable_ratio"] is not None
+    ]
 
     return {
         "scenario_count": scenario_count,
@@ -427,6 +485,9 @@ def _aggregate_summary(per_scenario_metrics: List[Dict]) -> Dict:
         "t95": float(np.percentile(all_cycle_times, 95)) if all_cycle_times else None,
         "Omega_bar": float(np.mean(all_credible_sizes)) if all_credible_sizes else None,
         "C_Omega": float(np.mean(coverage_values)) if coverage_values else None,
+        "C_Omega_coarse": (
+            float(np.mean(coarse_coverage_values)) if coarse_coverage_values else None
+        ),
         "URR": (
             float(np.mean(all_unrecoverable_ratio))
             if all_unrecoverable_ratio
@@ -440,17 +501,41 @@ def _aggregate_summary(per_scenario_metrics: List[Dict]) -> Dict:
             "t95": "95th percentile of planning cycle time over all planning cycles.",
             "Omega_bar": "Mean credible joint scenario set size over all planning cycles.",
             "C_Omega": "Mean per-scenario true joint intent coverage by credible joint sets.",
+            "C_Omega_coarse": "Mean per-scenario true coarse joint intent coverage after merging strong/soft into yield/challenge.",
             "URR": "Mean unrecoverable shared-plan ratio over all planning cycles: 1 - recoverable_shared_plan_count / shared_plan_count.",
         },
     }
 
 
-def _cleanup_unwanted_outputs(scenario_name: str):
-    for candidate in [
-        REPO_ROOT / "planner/Frenet/results/logs" / f"{scenario_name}.csv",
-        REPO_ROOT / "planner/Frenet/results/eval" / f"exec_timing_{scenario_name}.json",
-        REPO_ROOT / "planner/Frenet/results/eval" / f"plot_replay_{scenario_name}.gif",
+def _archive_and_cleanup_unwanted_outputs(scenario_name: str, archive_dir: Path = None):
+    archive_targets = []
+    for directory, patterns in [
+        (
+            REPO_ROOT / "planner/Frenet/results/logs",
+            [f"{scenario_name}.csv", f"*{scenario_name}*.csv"],
+        ),
+        (
+            REPO_ROOT / "planner/Frenet/results/eval",
+            [f"exec_timing_{scenario_name}.json", f"plot_replay_{scenario_name}.gif"],
+        ),
     ]:
+        if not directory.exists():
+            continue
+        for pattern in patterns:
+            archive_targets.extend(path for path in directory.glob(pattern) if path.is_file())
+
+    if archive_dir is not None:
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        seen = set()
+        for source_path in archive_targets:
+            resolved = str(source_path.resolve())
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            target_path = archive_dir / source_path.name
+            target_path.write_bytes(source_path.read_bytes())
+
+    for candidate in archive_targets:
         if candidate.exists():
             candidate.unlink()
 
@@ -492,6 +577,7 @@ def _write_metrics_csv(output_path: Path, per_scenario_metrics: List[Dict]):
         "t95_s",
         "Omega_bar",
         "C_Omega",
+        "C_Omega_coarse",
         "URR",
     ]
     with open(output_path, "w", newline="") as csv_file:
@@ -590,7 +676,10 @@ def main():
             gif_path=gif_path,
         )
         per_scenario_metrics.append(metrics)
-        _cleanup_unwanted_outputs(scenario_name=scenario_name)
+        _archive_and_cleanup_unwanted_outputs(
+            scenario_name=scenario_name,
+            archive_dir=output_dir / "logs" / "raw_outputs",
+        )
         clear_plot_snapshots()
         plt.close("all")
 

@@ -207,6 +207,9 @@ class ScenarioHandler:
             scenario=self.scenario,
             ego_ids=[agent.agent_id for agent in self.agent_list],
             dt=self.scenario.dt,
+            fine_grained_intent=bool(
+                getattr(self.planner_creator, "settings", {}).get("intent_mode_count", 2) == 4
+            ),
         )
         self.motion_history = {}
         self._record_motion_snapshot(time_step=0)

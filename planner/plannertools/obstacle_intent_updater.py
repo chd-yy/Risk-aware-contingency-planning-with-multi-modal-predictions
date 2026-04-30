@@ -285,9 +285,10 @@ class _ObstacleIntentState:
 
 
 class YieldChallengeUpdater:
-    def __init__(self, scenario, ego_ids: Iterable[int], dt: float):
+    def __init__(self, scenario, ego_ids: Iterable[int], dt: float, fine_grained_intent: bool = False):
         self.ego_ids = set(ego_ids)
         self.dt = float(dt)
+        self.fine_grained_intent = bool(fine_grained_intent)
         self.obstacle_states: Dict[int, _ObstacleIntentState] = {}
         self.debug_obstacle_ids = {20044, 20087}
 
@@ -312,7 +313,7 @@ class YieldChallengeUpdater:
             cruise_speed = max(2.0, initial_speed)
             self.obstacle_states[obstacle.obstacle_id] = _ObstacleIntentState(
                 obstacle_id=obstacle.obstacle_id,
-                intent="challenge",
+                intent=self._compose_intent_label("challenge", "soft"),
                 last_intent_switch_time=int(getattr(obstacle.initial_state, "time_step", 0)),
                 path_points=path_points,
                 arc_lengths=arc_lengths,
@@ -323,6 +324,94 @@ class YieldChallengeUpdater:
                 challenge_speed=max(cruise_speed + 4.0, cruise_speed * 1.6),
                 last_state=obstacle.initial_state,
             )
+
+    def _coarse_intent(self, intent_label: str) -> str:
+        label = str(intent_label).lower()
+        return "yield" if label.startswith("yield") else "challenge"
+
+    def _compose_intent_label(self, coarse_intent: str, strength: str = "soft") -> str:
+        coarse = "yield" if str(coarse_intent).lower().startswith("yield") else "challenge"
+        if not self.fine_grained_intent:
+            return coarse
+        if coarse == "yield":
+            return "yield_strong" if strength == "strong" else "yield_soft"
+        return "challenge_hard" if strength == "hard" else "challenge_soft"
+
+    def _is_yield_intent(self, obstacle_state: _ObstacleIntentState) -> bool:
+        return self._coarse_intent(obstacle_state.intent) == "yield"
+
+    def _is_challenge_intent(self, obstacle_state: _ObstacleIntentState) -> bool:
+        return self._coarse_intent(obstacle_state.intent) == "challenge"
+
+    def _set_intent(
+        self,
+        obstacle_state: _ObstacleIntentState,
+        coarse_intent: str,
+        strength: str = "soft",
+        next_time_step: int = None,
+        update_switch_time: bool = False,
+    ):
+        previous_coarse = self._coarse_intent(obstacle_state.intent)
+        obstacle_state.intent = self._compose_intent_label(coarse_intent, strength)
+        if update_switch_time and next_time_step is not None and previous_coarse != coarse_intent:
+            obstacle_state.last_intent_switch_time = next_time_step
+
+    def _refine_intent_strength(
+        self,
+        obstacle_state: _ObstacleIntentState,
+        desired_speed: float,
+        distance_to_conflict: float = None,
+        obstacle_ttc: float = None,
+        ego_ttc: float = None,
+    ):
+        if not self.fine_grained_intent:
+            obstacle_state.intent = self._compose_intent_label(
+                self._coarse_intent(obstacle_state.intent)
+            )
+            return
+
+        if self._is_yield_intent(obstacle_state):
+            strong_yield = bool(obstacle_state.emergency_brake)
+            if distance_to_conflict is not None and np.isfinite(distance_to_conflict):
+                strong_yield = strong_yield or distance_to_conflict < 18.0
+            if (
+                obstacle_ttc is not None
+                and ego_ttc is not None
+                and np.isfinite(obstacle_ttc)
+                and np.isfinite(ego_ttc)
+            ):
+                strong_yield = strong_yield or (ego_ttc <= obstacle_ttc + 1.5)
+            strong_yield = strong_yield or (
+                desired_speed <= min(1.5, 0.45 * max(obstacle_state.cruise_speed, 0.1))
+            )
+            self._set_intent(
+                obstacle_state,
+                coarse_intent="yield",
+                strength="strong" if strong_yield else "soft",
+            )
+            return
+
+        hard_challenge = False
+        if distance_to_conflict is not None and np.isfinite(distance_to_conflict):
+            hard_challenge = hard_challenge or distance_to_conflict < 18.0
+        if (
+            obstacle_ttc is not None
+            and ego_ttc is not None
+            and np.isfinite(obstacle_ttc)
+            and np.isfinite(ego_ttc)
+        ):
+            hard_challenge = hard_challenge or (obstacle_ttc <= ego_ttc - 0.6)
+        hard_challenge = hard_challenge or (
+            desired_speed >= max(obstacle_state.cruise_speed + 0.5, 0.92 * obstacle_state.challenge_speed)
+        )
+        hard_challenge = hard_challenge or (
+            obstacle_state.current_speed >= 0.9 * obstacle_state.challenge_speed
+        )
+        self._set_intent(
+            obstacle_state,
+            coarse_intent="challenge",
+            strength="hard" if hard_challenge else "soft",
+        )
 
     def reset_scenario_obstacles(self, scenario):
         for obstacle in scenario.dynamic_obstacles:
@@ -349,7 +438,9 @@ class YieldChallengeUpdater:
             prediction.shape_lanelet_assignment = {}
 
             if obstacle.obstacle_id in self.obstacle_states:
-                self.obstacle_states[obstacle.obstacle_id].intent = "challenge"
+                self.obstacle_states[obstacle.obstacle_id].intent = self._compose_intent_label(
+                    "challenge", "soft"
+                )
                 self.obstacle_states[obstacle.obstacle_id].emergency_brake = False
                 self.obstacle_states[obstacle.obstacle_id].last_intent_switch_time = int(initial_state.time_step)
                 self.obstacle_states[obstacle.obstacle_id].current_s = float(
@@ -423,7 +514,7 @@ class YieldChallengeUpdater:
                         obstacle_ttc=obstacle_ttc,
                         ego_ttc=ego_ttc,
                     )
-                elif obstacle_state.intent == "yield":
+                elif self._is_yield_intent(obstacle_state):
                     desired_speed = self._yield_speed(
                         obstacle_state=obstacle_state,
                         distance_to_conflict=distance_to_conflict,
@@ -437,6 +528,13 @@ class YieldChallengeUpdater:
                         obstacle_ttc=obstacle_ttc,
                         ego_ttc=ego_ttc,
                     )
+                self._refine_intent_strength(
+                    obstacle_state=obstacle_state,
+                    desired_speed=desired_speed,
+                    distance_to_conflict=distance_to_conflict,
+                    obstacle_ttc=obstacle_ttc,
+                    ego_ttc=ego_ttc,
+                )
 
                 # if obstacle_id in self.debug_obstacle_ids:
                 #     print(
@@ -454,11 +552,16 @@ class YieldChallengeUpdater:
             elif obstacle_id in self.debug_obstacle_ids:
                 obstacle_state.no_conflict_steps += 1
                 if (
-                    obstacle_state.intent == "yield"
+                    self._is_yield_intent(obstacle_state)
                     and obstacle_state.no_conflict_steps >= NO_CONFLICT_RECOVERY_STEPS
                 ):
-                    obstacle_state.intent = "challenge"
-                    obstacle_state.last_intent_switch_time = next_time_step
+                    self._set_intent(
+                        obstacle_state,
+                        coarse_intent="challenge",
+                        strength="soft",
+                        next_time_step=next_time_step,
+                        update_switch_time=True,
+                    )
                 # print(
                 #     "[ObstacleDebug_no_conflict_point] "
                 #     f"t={next_time_step} id={obstacle_id} "
@@ -471,11 +574,21 @@ class YieldChallengeUpdater:
             else:
                 obstacle_state.no_conflict_steps += 1
                 if (
-                    obstacle_state.intent == "yield"
+                    self._is_yield_intent(obstacle_state)
                     and obstacle_state.no_conflict_steps >= NO_CONFLICT_RECOVERY_STEPS
                 ):
-                    obstacle_state.intent = "challenge"
-                    obstacle_state.last_intent_switch_time = next_time_step
+                    self._set_intent(
+                        obstacle_state,
+                        coarse_intent="challenge",
+                        strength="soft",
+                        next_time_step=next_time_step,
+                        update_switch_time=True,
+                    )
+            if conflict_point is None:
+                self._refine_intent_strength(
+                    obstacle_state=obstacle_state,
+                    desired_speed=desired_speed,
+                )
 
             updated_state = self._propagate_state(
                 obstacle_state=obstacle_state,
@@ -506,6 +619,13 @@ class YieldChallengeUpdater:
             ego_ttc=ego_ttc,
         ):
             obstacle_state.emergency_brake = True
+            self._set_intent(
+                obstacle_state,
+                coarse_intent="yield",
+                strength="strong",
+                next_time_step=next_time_step,
+                update_switch_time=True,
+            )
             return
 
         obstacle_state.emergency_brake = False
@@ -514,32 +634,52 @@ class YieldChallengeUpdater:
             return
 
         if not np.isfinite(ego_ttc):
-            if obstacle_state.intent != "challenge":
-                obstacle_state.intent = "challenge"
-                obstacle_state.last_intent_switch_time = next_time_step
+            if not self._is_challenge_intent(obstacle_state):
+                self._set_intent(
+                    obstacle_state,
+                    coarse_intent="challenge",
+                    strength="soft",
+                    next_time_step=next_time_step,
+                    update_switch_time=True,
+                )
             return
 
         if distance_to_conflict > 65.0:
-            if obstacle_state.intent != "challenge":
-                obstacle_state.intent = "challenge"
-                obstacle_state.last_intent_switch_time = next_time_step
+            if not self._is_challenge_intent(obstacle_state):
+                self._set_intent(
+                    obstacle_state,
+                    coarse_intent="challenge",
+                    strength="soft",
+                    next_time_step=next_time_step,
+                    update_switch_time=True,
+                )
             return
 
         ego_dominant = ego_ttc + 2.8 < obstacle_ttc
         obstacle_dominant = obstacle_ttc + 0.4 < ego_ttc
 
-        if obstacle_state.intent == "challenge":
+        if self._is_challenge_intent(obstacle_state):
             if ego_dominant and (
                 distance_to_conflict < 24.0 or ego_ttc < 3.2
             ):
-                obstacle_state.intent = "yield"
-                obstacle_state.last_intent_switch_time = next_time_step
+                self._set_intent(
+                    obstacle_state,
+                    coarse_intent="yield",
+                    strength="strong" if (distance_to_conflict < 18.0 or ego_ttc < 2.6) else "soft",
+                    next_time_step=next_time_step,
+                    update_switch_time=True,
+                )
         else:
             if obstacle_dominant or (
                 distance_to_conflict > 14.0 and ego_ttc > obstacle_ttc + 0.4
             ):
-                obstacle_state.intent = "challenge"
-                obstacle_state.last_intent_switch_time = next_time_step
+                self._set_intent(
+                    obstacle_state,
+                    coarse_intent="challenge",
+                    strength="hard" if obstacle_dominant and distance_to_conflict < 20.0 else "soft",
+                    next_time_step=next_time_step,
+                    update_switch_time=True,
+                )
 
     def _should_emergency_yield(
         self,
@@ -692,7 +832,7 @@ class YieldChallengeUpdater:
         desired_speed: float,
         next_time_step: int,
     ) -> State:
-        max_acc = 3.5 if obstacle_state.intent == "challenge" else 1.5
+        max_acc = 3.5 if self._is_challenge_intent(obstacle_state) else 1.5
         max_dec = 4.0 if obstacle_state.emergency_brake else 3.5
         speed_error = desired_speed - obstacle_state.current_speed
         acceleration = float(np.clip(speed_error / self.dt, -max_dec, max_acc))
