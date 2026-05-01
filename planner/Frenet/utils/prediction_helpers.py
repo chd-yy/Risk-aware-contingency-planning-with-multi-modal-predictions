@@ -562,7 +562,9 @@ def update_interaction_mode_belief(
 
     if dt is None:
         dt = scenario.dt
-    mode_count = 4 if int(mode_count) == 4 else 2
+    mode_count = int(mode_count)
+    if mode_count not in {2, 3, 4}:
+        mode_count = 2
     forgetting_factor = 0.72
     neutral_prior = np.full(mode_count, 1.0 / float(mode_count), dtype=float)
     updated_predictions = predictions
@@ -574,7 +576,7 @@ def update_interaction_mode_belief(
 
     for obstacle_id, pred in updated_predictions.items():
         pos_list = pred.get("pos_list")
-        required_modes = 4 if mode_count == 4 else 2
+        required_modes = mode_count
         if not isinstance(pos_list, list) or len(pos_list) < required_modes:
             continue
 
@@ -602,6 +604,9 @@ def update_interaction_mode_belief(
         if mode_count == 4:
             yield_group = [np.asarray(pos_list[0], dtype=float), np.asarray(pos_list[1], dtype=float)]
             challenge_group = [np.asarray(pos_list[2], dtype=float), np.asarray(pos_list[3], dtype=float)]
+        elif mode_count == 3:
+            yield_group = [np.asarray(pos_list[0], dtype=float), np.asarray(pos_list[1], dtype=float)]
+            challenge_group = [np.asarray(pos_list[2], dtype=float)]
         else:
             yield_group = [np.asarray(pos_list[0], dtype=float)]
             challenge_group = [np.asarray(pos_list[1], dtype=float)]
@@ -627,7 +632,7 @@ def update_interaction_mode_belief(
             dt=dt,
         )
 
-        if mode_count == 4:
+        if mode_count in {3, 4}:
             coarse_prior = np.array(
                 [
                     float(np.sum(prior[:2])),
@@ -893,12 +898,16 @@ def _build_yield_challenge_mode_trajectories(obstacle_state, base_mean, horizon,
     path_lengths = _polyline_arc_lengths(path_points)
     path_total_length = float(path_lengths[-1])
 
-    mode_count = 4 if int(mode_count) == 4 else 2
+    mode_count = int(mode_count)
+    if mode_count not in {2, 3, 4}:
+        mode_count = 2
 
     if horizon <= 1 or path_total_length < 1e-6:
         repeated = np.repeat(path_points[:1], max(horizon, 1), axis=0)
         if mode_count == 4:
             return [repeated.copy(), repeated.copy(), repeated.copy(), repeated.copy()]
+        if mode_count == 3:
+            return [repeated.copy(), repeated.copy(), repeated.copy()]
         return [repeated, repeated.copy()]
 
     base_ds = path_total_length / max(horizon - 1, 1)
@@ -907,16 +916,23 @@ def _build_yield_challenge_mode_trajectories(obstacle_state, base_mean, horizon,
     challenge_ds = base_speed * dt
     yield_ds = min(challenge_ds * 0.35, 1.0)
 
+    challenge_hard_ds = max(challenge_ds * 1.15, challenge_ds + 0.15)
+    challenge_soft_ds = max(challenge_ds * 0.90, yield_ds + 0.10)
+    yield_soft_ds = min(max(yield_ds * 1.45, 0.55 * challenge_ds), challenge_soft_ds * 0.92)
+    yield_strong_ds = min(yield_ds, max(0.20, 0.30 * challenge_ds))
+
     if mode_count == 4:
-        challenge_hard_ds = max(challenge_ds * 1.15, challenge_ds + 0.15)
-        challenge_soft_ds = max(challenge_ds * 0.90, yield_ds + 0.10)
-        yield_soft_ds = min(max(yield_ds * 1.45, 0.55 * challenge_ds), challenge_soft_ds * 0.92)
-        yield_strong_ds = min(yield_ds, max(0.20, 0.30 * challenge_ds))
         return [
             _sample_polyline(path_points, 0.0, yield_strong_ds, horizon),
             _sample_polyline(path_points, 0.0, yield_soft_ds, horizon),
             _sample_polyline(path_points, 0.0, challenge_soft_ds, horizon),
             _sample_polyline(path_points, 0.0, challenge_hard_ds, horizon),
+        ]
+    if mode_count == 3:
+        return [
+            _sample_polyline(path_points, 0.0, yield_strong_ds, horizon),
+            _sample_polyline(path_points, 0.0, yield_soft_ds, horizon),
+            _sample_polyline(path_points, 0.0, challenge_ds, horizon),
         ]
 
     challenge_traj = _sample_polyline(path_points, 0.0, challenge_ds, horizon)
@@ -1175,6 +1191,12 @@ def build_multimodal_gmm_predictions(
                 "yield_soft",
                 "challenge_soft",
                 "challenge_hard",
+            ]
+        elif int(mode_count) == 3:
+            mode_behavior_list = [
+                "yield_strong",
+                "yield_soft",
+                "challenge",
             ]
         else:
             mode_behavior_list = ["yield", "challenge"]

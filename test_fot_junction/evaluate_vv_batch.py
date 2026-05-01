@@ -670,7 +670,7 @@ def main():
     parser.add_argument("--risk-config", default="risk.json")
     parser.add_argument("--fps", type=int, default=10)
     parser.add_argument("--experiment-tag", default="")
-    parser.add_argument("--intent-mode-count", type=int, choices=[2, 4], default=2)
+    parser.add_argument("--intent-mode-count", type=int, choices=[2, 3, 4], default=2)
     parser.add_argument("--recoverability-enabled", choices=["true", "false"], default=None)
     parser.add_argument("--longitudinal-a-max-scale", type=float, default=None)
     parser.add_argument("--lateral-a-max-scale", type=float, default=None)

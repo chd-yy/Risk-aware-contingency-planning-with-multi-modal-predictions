@@ -342,7 +342,7 @@ class FrenetPlanner(Planner):
                             settings.get("evaluation_settings", {}).get("intent_mode_count", 2),
                         )
                     )
-                if self.intent_mode_count not in {2, 4}:
+                if self.intent_mode_count not in {2, 3, 4}:
                     self.intent_mode_count = 2
 
                 # get visualization marker

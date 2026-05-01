@@ -15,6 +15,7 @@ DEFAULT_SAMPLE_DIR = "recorded/hand-crafted/vv_samples"
 
 MODE_SETTINGS = [
     {"name": "mode2", "intent_mode_count": 2},
+    {"name": "mode3", "intent_mode_count": 3},
     {"name": "mode4", "intent_mode_count": 4},
 ]
 
