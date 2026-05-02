@@ -475,6 +475,140 @@ def _scenario_metrics(
     return scenario_metric
 
 
+def _build_c_omega_trace(
+    evaluator: LightweightScenarioEvaluator,
+    return_dict: Dict,
+) -> Dict:
+    planner = None
+    if evaluator.agent_list:
+        planner = getattr(evaluator.agent_list[0], "planner", None)
+
+    credible_timesteps = []
+    credible_labels = []
+    credible_weights = []
+    credible_cumulative_prob = []
+    if planner is not None:
+        credible_timesteps = [
+            int(value)
+            for value in planner.credible_joint_history.get("timesteps", [])
+        ]
+        credible_labels = [
+            list(labels)
+            for labels in planner.credible_joint_history.get("credible_labels", [])
+        ]
+        credible_weights = [
+            [float(weight) for weight in weights]
+            for weights in planner.credible_joint_history.get("credible_weights", [])
+        ]
+        credible_cumulative_prob = [
+            float(value)
+            for value in planner.credible_joint_history.get("credible_cumulative_prob", [])
+        ]
+
+    timestep_records = []
+    coverage_hits = []
+    coarse_coverage_hits = []
+    for idx, (timestep, label_list) in enumerate(zip(credible_timesteps, credible_labels)):
+        actual_intents = evaluator.intent_history.get(int(timestep), {})
+        obstacle_ids = _extract_obstacle_ids_from_labels(label_list)
+        actual_label = _actual_joint_label(actual_intents, obstacle_ids)
+        actual_label_coarse = _actual_joint_label_coarse(actual_intents, obstacle_ids)
+        canonical_credible = [_canonicalize_joint_label(label) for label in label_list]
+        canonical_credible_set = set(canonical_credible)
+        canonical_credible_coarse = [_coarsen_joint_label(label) for label in label_list]
+        canonical_credible_coarse_set = set(canonical_credible_coarse)
+
+        hit = None
+        if actual_label:
+            hit = 1 if actual_label in canonical_credible_set else 0
+            coverage_hits.append(hit)
+
+        coarse_hit = None
+        if actual_label_coarse:
+            coarse_hit = (
+                1 if actual_label_coarse in canonical_credible_coarse_set else 0
+            )
+            coarse_coverage_hits.append(coarse_hit)
+
+        timestep_records.append(
+            {
+                "timestep": int(timestep),
+                "obstacle_ids": [int(obstacle_id) for obstacle_id in obstacle_ids],
+                "actual_intents": {
+                    str(int(obstacle_id)): str(intent_label)
+                    for obstacle_id, intent_label in sorted(actual_intents.items())
+                    if int(obstacle_id) in obstacle_ids
+                },
+                "actual_joint_label": actual_label,
+                "actual_joint_label_coarse": actual_label_coarse,
+                "credible_joint_labels_raw": [str(label) for label in label_list],
+                "credible_joint_labels_canonical": canonical_credible,
+                "credible_joint_labels_coarse": canonical_credible_coarse,
+                "credible_joint_weights": (
+                    credible_weights[idx] if idx < len(credible_weights) else []
+                ),
+                "credible_cumulative_prob": (
+                    credible_cumulative_prob[idx]
+                    if idx < len(credible_cumulative_prob)
+                    else None
+                ),
+                "hit": hit,
+                "coarse_hit": coarse_hit,
+            }
+        )
+
+    scenario_name = Path(str(return_dict["scenario_path"])).stem
+    return {
+        "scenario": str(return_dict["scenario_path"]),
+        "scenario_name": scenario_name,
+        "success": bool(return_dict.get("success", False)),
+        "reason_for_failure": return_dict.get("reason_for_failure"),
+        "timesteps": timestep_records,
+        "C_Omega": float(np.mean(coverage_hits)) if coverage_hits else None,
+        "C_Omega_coarse": (
+            float(np.mean(coarse_coverage_hits)) if coarse_coverage_hits else None
+        ),
+        "hit_count": int(sum(coverage_hits)) if coverage_hits else 0,
+        "coarse_hit_count": int(sum(coarse_coverage_hits)) if coarse_coverage_hits else 0,
+        "evaluated_timestep_count": len(coverage_hits),
+        "evaluated_timestep_count_coarse": len(coarse_coverage_hits),
+    }
+
+
+def _write_c_omega_trace(trace_dir: Path, trace_payload: Dict):
+    trace_dir.mkdir(parents=True, exist_ok=True)
+    scenario_name = str(trace_payload.get("scenario_name", "unknown"))
+    json_path = trace_dir / f"{scenario_name}_c_omega_trace.json"
+    md_path = trace_dir / f"{scenario_name}_c_omega_trace.md"
+
+    with open(json_path, "w") as json_file:
+        json.dump(trace_payload, json_file, indent=2, ensure_ascii=False)
+
+    md_lines = [
+        f"# {scenario_name} C_Omega Trace",
+        "",
+        f"- `success`: `{trace_payload.get('success')}`",
+        f"- `reason_for_failure`: `{trace_payload.get('reason_for_failure')}`",
+        f"- `C_Omega`: `{trace_payload.get('C_Omega')}`",
+        f"- `C_Omega_coarse`: `{trace_payload.get('C_Omega_coarse')}`",
+        f"- `hit_count`: `{trace_payload.get('hit_count')}` / `{trace_payload.get('evaluated_timestep_count')}`",
+        "",
+        "| timestep | actual_joint | credible_contains_actual | actual_joint_coarse | credible_contains_actual_coarse |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for item in trace_payload.get("timesteps", []):
+        md_lines.append(
+            "| {timestep} | {actual_joint} | {hit} | {actual_joint_coarse} | {coarse_hit} |".format(
+                timestep=item.get("timestep"),
+                actual_joint=str(item.get("actual_joint_label", "")),
+                hit=str(item.get("hit")),
+                actual_joint_coarse=str(item.get("actual_joint_label_coarse", "")),
+                coarse_hit=str(item.get("coarse_hit")),
+            )
+        )
+    md_path.write_text("\n".join(md_lines) + "\n")
+
+
 def _aggregate_summary(per_scenario_metrics: List[Dict]) -> Dict:
     scenario_count = len(per_scenario_metrics)
     success_values = [1.0 if item["success"] else 0.0 for item in per_scenario_metrics]
@@ -670,6 +804,11 @@ def main():
     parser.add_argument("--risk-config", default="risk.json")
     parser.add_argument("--fps", type=int, default=10)
     parser.add_argument("--experiment-tag", default="")
+    parser.add_argument(
+        "--c-omega-trace-dir",
+        default=None,
+        help="Optional directory to dump per-scenario detailed C_Omega calculation traces.",
+    )
     parser.add_argument("--intent-mode-count", type=int, choices=[2, 3, 4], default=2)
     parser.add_argument("--recoverability-enabled", choices=["true", "false"], default=None)
     parser.add_argument("--longitudinal-a-max-scale", type=float, default=None)
@@ -719,8 +858,15 @@ def main():
     path_to_scenarios = (REPO_ROOT / "scenarios").resolve()
     output_dir = (REPO_ROOT / args.output_dir).resolve()
     gif_dir = output_dir / "gifs"
+    c_omega_trace_dir = (
+        (REPO_ROOT / args.c_omega_trace_dir).resolve()
+        if args.c_omega_trace_dir
+        else None
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     gif_dir.mkdir(parents=True, exist_ok=True)
+    if c_omega_trace_dir is not None:
+        c_omega_trace_dir.mkdir(parents=True, exist_ok=True)
 
     frenet_creator = FrenetCreator(settings)
     evaluator = LightweightScenarioEvaluator(
@@ -769,6 +915,15 @@ def main():
             gif_path=gif_path,
         )
         per_scenario_metrics.append(metrics)
+        if c_omega_trace_dir is not None:
+            trace_payload = _build_c_omega_trace(
+                evaluator=evaluator,
+                return_dict=return_dict,
+            )
+            _write_c_omega_trace(
+                trace_dir=c_omega_trace_dir,
+                trace_payload=trace_payload,
+            )
         _archive_and_cleanup_unwanted_outputs(
             scenario_name=scenario_name,
             archive_dir=output_dir / "logs" / "raw_outputs",
