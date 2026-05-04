@@ -9,6 +9,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Dict, List
+import contextlib
 
 import numpy as np
 from PIL import Image
@@ -87,8 +88,16 @@ DEFAULT_OUTPUT_DIR = "planner/Frenet/results/vv_batch_eval"
 
 
 class LightweightScenarioEvaluator(ScenarioEvaluator):
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        *args,
+        record_intent_history: bool = True,
+        record_clearance_history: bool = True,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
+        self.record_intent_history = bool(record_intent_history)
+        self.record_clearance_history = bool(record_clearance_history)
         self.intent_history = {}
         self.clearance_history = []
         self.global_min_clearance = float("inf")
@@ -156,12 +165,18 @@ class LightweightScenarioEvaluator(ScenarioEvaluator):
     def _record_motion_snapshot(self, time_step: int):
         super()._record_motion_snapshot(time_step=time_step)
 
-        if self.obstacle_updater is not None and hasattr(self.obstacle_updater, "obstacle_states"):
+        if (
+            self.record_intent_history
+            and self.obstacle_updater is not None
+            and hasattr(self.obstacle_updater, "obstacle_states")
+        ):
             self.intent_history[int(time_step)] = {
                 int(obstacle_id): str(obstacle_state.intent)
                 for obstacle_id, obstacle_state in self.obstacle_updater.obstacle_states.items()
             }
 
+        if not self.record_clearance_history:
+            return
         min_clearance = self._compute_min_clearance_at_timestep(time_step=time_step)
         self.clearance_history.append(
             {
@@ -475,6 +490,21 @@ def _scenario_metrics(
     return scenario_metric
 
 
+def _scenario_metrics_minimal(
+    evaluator: LightweightScenarioEvaluator,
+    return_dict: Dict,
+) -> Dict:
+    planning_cycle_times = _extract_planning_cycle_times(return_dict)
+    return {
+        "scenario": str(return_dict["scenario_path"]),
+        "scenario_name": Path(str(return_dict["scenario_path"])).stem,
+        "success": bool(return_dict.get("success", False)),
+        "t_c_s": (
+            float(np.mean(planning_cycle_times)) if planning_cycle_times else None
+        ),
+    }
+
+
 def _build_c_omega_trace(
     evaluator: LightweightScenarioEvaluator,
     return_dict: Dict,
@@ -709,6 +739,24 @@ def _aggregate_summary(per_scenario_metrics: List[Dict]) -> Dict:
     }
 
 
+def _aggregate_summary_minimal(per_scenario_metrics: List[Dict]) -> Dict:
+    scenario_count = len(per_scenario_metrics)
+    success_values = [1.0 if item["success"] else 0.0 for item in per_scenario_metrics]
+    t_c_values = [
+        float(item["t_c_s"])
+        for item in per_scenario_metrics
+        if item.get("t_c_s") is not None
+    ]
+    return {
+        "scenario_count": scenario_count,
+        "SR": float(np.mean(success_values)) if success_values else None,
+        "t_c": float(np.mean(t_c_values)) if t_c_values else None,
+        "aggregation_notes": {
+            "t_c": "Mean planning cycle time over all planning cycles within each scenario, then averaged over scenarios.",
+        },
+    }
+
+
 def _archive_and_cleanup_unwanted_outputs(scenario_name: str, archive_dir: Path = None):
     archive_targets = []
     for directory, patterns in [
@@ -794,6 +842,21 @@ def _write_metrics_csv(output_path: Path, per_scenario_metrics: List[Dict]):
             writer.writerow(row)
 
 
+def _write_metrics_csv_minimal(output_path: Path, per_scenario_metrics: List[Dict]):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "scenario",
+        "scenario_name",
+        "success",
+        "t_c_s",
+    ]
+    with open(output_path, "w", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in per_scenario_metrics:
+            writer.writerow({key: row.get(key) for key in fieldnames})
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-scenario", default=DEFAULT_BASE_SCENARIO)
@@ -804,6 +867,11 @@ def main():
     parser.add_argument("--risk-config", default="risk.json")
     parser.add_argument("--fps", type=int, default=10)
     parser.add_argument("--experiment-tag", default="")
+    parser.add_argument(
+        "--minimal-output",
+        action="store_true",
+        help="Only save per-scenario success and t_c_s, and disable unnecessary logging/visualization work.",
+    )
     parser.add_argument(
         "--c-omega-trace-dir",
         default=None,
@@ -829,7 +897,7 @@ def main():
     settings["risk_dict"] = load_risk_json(args.risk_config)
     settings["intent_mode_count"] = int(args.intent_mode_count)
     settings["evaluation_settings"]["intent_mode_count"] = int(args.intent_mode_count)
-    settings["evaluation_settings"]["show_visualization"] = True
+    settings["evaluation_settings"]["show_visualization"] = not bool(args.minimal_output)
     settings["evaluation_settings"]["timing_enabled"] = True
     settings["risk_dict"]["figures"]["create_figures"] = False
     settings["risk_dict"]["risk_dashboard"] = False
@@ -864,7 +932,8 @@ def main():
         else None
     )
     output_dir.mkdir(parents=True, exist_ok=True)
-    gif_dir.mkdir(parents=True, exist_ok=True)
+    if not args.minimal_output:
+        gif_dir.mkdir(parents=True, exist_ok=True)
     if c_omega_trace_dir is not None:
         c_omega_trace_dir.mkdir(parents=True, exist_ok=True)
 
@@ -876,6 +945,8 @@ def main():
         log_path=(REPO_ROOT / "log/example").resolve(),
         collision_report_path=output_dir,
         timing_enabled=settings["evaluation_settings"]["timing_enabled"],
+        record_intent_history=not args.minimal_output,
+        record_clearance_history=not args.minimal_output,
     )
 
     scenario_list = _build_scenario_list(
@@ -900,22 +971,36 @@ def main():
     for scenario_idx, scenario_rel_path in enumerate(scenario_list, start=1):
         scenario_name = Path(scenario_rel_path).stem
         print(f"[{scenario_idx:03d}/{len(scenario_list):03d}] evaluating {scenario_name}")
-        clear_plot_snapshots()
-        plt.close("all")
+        if not args.minimal_output:
+            clear_plot_snapshots()
+            plt.close("all")
 
-        return_dict = evaluator.eval_scenario(scenario_rel_path)
-        gif_path = gif_dir / f"{scenario_name}.gif"
-        gif_saved = _save_snapshots_to_gif(output_path=gif_path, fps=args.fps)
-        if not gif_saved:
-            gif_path = ""
+        if args.minimal_output:
+            with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+                return_dict = evaluator.eval_scenario(scenario_rel_path)
+        else:
+            return_dict = evaluator.eval_scenario(scenario_rel_path)
 
-        metrics = _scenario_metrics(
-            evaluator=evaluator,
-            return_dict=return_dict,
-            gif_path=gif_path,
-        )
+        gif_path = ""
+        if not args.minimal_output:
+            gif_path = gif_dir / f"{scenario_name}.gif"
+            gif_saved = _save_snapshots_to_gif(output_path=gif_path, fps=args.fps)
+            if not gif_saved:
+                gif_path = ""
+
+        if args.minimal_output:
+            metrics = _scenario_metrics_minimal(
+                evaluator=evaluator,
+                return_dict=return_dict,
+            )
+        else:
+            metrics = _scenario_metrics(
+                evaluator=evaluator,
+                return_dict=return_dict,
+                gif_path=gif_path,
+            )
         per_scenario_metrics.append(metrics)
-        if c_omega_trace_dir is not None:
+        if (not args.minimal_output) and c_omega_trace_dir is not None:
             trace_payload = _build_c_omega_trace(
                 evaluator=evaluator,
                 return_dict=return_dict,
@@ -924,14 +1009,19 @@ def main():
                 trace_dir=c_omega_trace_dir,
                 trace_payload=trace_payload,
             )
-        _archive_and_cleanup_unwanted_outputs(
-            scenario_name=scenario_name,
-            archive_dir=output_dir / "logs" / "raw_outputs",
-        )
-        clear_plot_snapshots()
-        plt.close("all")
+        if not args.minimal_output:
+            _archive_and_cleanup_unwanted_outputs(
+                scenario_name=scenario_name,
+                archive_dir=output_dir / "logs" / "raw_outputs",
+            )
+            clear_plot_snapshots()
+            plt.close("all")
 
-    summary = _aggregate_summary(per_scenario_metrics)
+    summary = (
+        _aggregate_summary_minimal(per_scenario_metrics)
+        if args.minimal_output
+        else _aggregate_summary(per_scenario_metrics)
+    )
     summary["evaluated_scenarios"] = len(scenario_list)
     summary["experiment_tag"] = str(args.experiment_tag)
     summary["recoverability_enabled"] = settings["contingency_settings"].get(
@@ -950,11 +1040,15 @@ def main():
             json_file,
             indent=2,
         )
-    _write_metrics_csv(metrics_csv_path, per_scenario_metrics)
+    if args.minimal_output:
+        _write_metrics_csv_minimal(metrics_csv_path, per_scenario_metrics)
+    else:
+        _write_metrics_csv(metrics_csv_path, per_scenario_metrics)
 
     print(f"Saved summary to {metrics_json_path}")
     print(f"Saved per-scenario metrics to {metrics_csv_path}")
-    print(f"Saved GIFs to {gif_dir}")
+    if not args.minimal_output:
+        print(f"Saved GIFs to {gif_dir}")
 
 
 if __name__ == "__main__":
