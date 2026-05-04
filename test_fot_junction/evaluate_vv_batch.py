@@ -1,5 +1,7 @@
 import argparse
 import csv
+import importlib.machinery
+import importlib.util
 import json
 import math
 import os
@@ -28,6 +30,30 @@ if str(REPO_ROOT.parent) not in sys.path:
     sys.path.append(str(REPO_ROOT.parent))
 if str(REPO_ROOT) not in sys.path:
     sys.path.append(str(REPO_ROOT))
+
+
+def _bootstrap_repo_namespace():
+    package_name = "beliefplanning"
+    repo_path = str(REPO_ROOT)
+    existing_module = sys.modules.get(package_name)
+    if existing_module is not None:
+        package_paths = list(getattr(existing_module, "__path__", []))
+        if repo_path not in package_paths:
+            existing_module.__path__ = [repo_path, *package_paths]
+        return
+
+    module_spec = importlib.machinery.ModuleSpec(
+        name=package_name,
+        loader=None,
+        is_package=True,
+    )
+    package_module = importlib.util.module_from_spec(module_spec)
+    package_module.__path__ = [repo_path]
+    package_module.__package__ = package_name
+    sys.modules[package_name] = package_module
+
+
+_bootstrap_repo_namespace()
 
 for site_packages in REPO_ROOT.glob(".venv*/lib/python*/site-packages"):
     if str(site_packages) not in sys.path:
